@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-forest: #F3F4F6;
+  /* Light gray for hover states and secondary backgrounds */
+  --color-card: #FFFFFF;
+  /* Pure white cards */
+  --color-primary: #009E60;
+  /* Irish Green */
+  --color-primary-light: #00824F;
+  /* Darker Irish Green for hover */
+  --color-text-main: #000000;
+  /* High contrast black */
+  --color-text-muted: #4B5563;
+  /* Medium gray */
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-border: #D1D5DB;
+  /* Slightly darker border for crispness */
+}
+
+@layer base {
+  :root {
+    --background: #FFFFFF;
+    /* Pure white background */
+    --foreground: var(--color-text-main);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    @apply antialiased min-h-screen selection:bg-primary/30;
+  }
+}
+
+@layer components {
+  .card-styled {
+    @apply bg-card border border-border rounded-sm;
+  }
+}
