@@ -49,23 +49,45 @@ export default function Dashboard() {
         .order('bedtime', { ascending: false })
         .limit(1);
 
-      // 3. Focus Mins
+      // 3. Focus Mins + timeline
       const { data: focusData } = await supabase
         .from('focus_sessions')
-        .select('duration_minutes')
+        .select('duration_minutes, started_at')
         .eq('user_id', user!.id)
         .gte('started_at', todayStr);
         
       const totalFocus = focusData?.reduce((acc: number, curr: any) => acc + (curr.duration_minutes || 0), 0) || 0;
 
-      // 4. Distraction Mins
+      // Build focus timeline bucketed by 2-hour windows
+      const focusBuckets: Record<string, number> = {
+        '6am': 0, '8am': 0, '10am': 0, '12pm': 0,
+        '2pm': 0, '4pm': 0, '6pm': 0, '8pm': 0,
+      };
+      focusData?.forEach((s: any) => {
+        const hr = new Date(s.started_at).getHours();
+        const label =
+          hr < 7 ? '6am' : hr < 9 ? '8am' : hr < 11 ? '10am' :
+          hr < 13 ? '12pm' : hr < 15 ? '2pm' : hr < 17 ? '4pm' :
+          hr < 19 ? '6pm' : '8pm';
+        focusBuckets[label] += s.duration_minutes || 0;
+      });
+      const focusTimeline = Object.entries(focusBuckets).map(([name, value]) => ({ name, value }));
+
+      // 4. Distraction Mins + breakdown by category
       const { data: distData } = await supabase
         .from('distraction_logs')
-        .select('duration_minutes')
+        .select('duration_minutes, category')
         .eq('user_id', user!.id)
         .gte('timestamp', todayStr);
         
       const totalDist = distData?.reduce((acc: number, curr: any) => acc + (curr.duration_minutes || 0), 0) || 0;
+
+      const distCats: Record<string, number> = {};
+      distData?.forEach((d: any) => {
+        const label = d.category?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Other';
+        distCats[label] = (distCats[label] || 0) + (d.duration_minutes || 0);
+      });
+      const distractionBreakdown = Object.entries(distCats).map(([name, value]) => ({ name, value }));
 
       // 5. GI Risk
       const { data: foodData } = await supabase
@@ -86,25 +108,15 @@ export default function Dashboard() {
         sleep: sleepData?.[0] || null,
         focusMins: totalFocus,
         distractMins: totalDist,
-        giRisk: giRisk as 'safe' | 'warning' | 'danger'
+        giRisk: giRisk as 'safe' | 'warning' | 'danger',
+        focusTimeline,
+        distractionBreakdown,
       };
     }
   });
 
-  // Mock data for charts
-  const focusTimelineData = [
-    { name: '8am', value: 0 },
-    { name: '10am', value: 45 },
-    { name: '12pm', value: 20 },
-    { name: '2pm', value: 90 },
-    { name: '4pm', value: 30 },
-  ];
-
-  const distractionData = [
-    { name: 'Social', value: 45 },
-    { name: 'News', value: 20 },
-    { name: 'YouTube', value: 60 },
-  ];
+  const focusTimelineData = todayStats?.focusTimeline || [];
+  const distractionData = todayStats?.distractionBreakdown || [];
 
   return (
     <div className="space-y-6 pb-12">

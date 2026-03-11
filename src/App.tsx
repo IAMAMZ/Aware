@@ -7,21 +7,23 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Login from './pages/Login';
 
-// Pages (Stubs for now, to be expanded)
+// Pages
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 
-// Stubs for the rest of the pages
-const Nutrition = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Nutrition & GI</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Sleep = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Sleep Tracker</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Mood = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Emotions & Mood</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
+// Feature pages
+import MoodPage from './features/mood/MoodPage';
+import SleepPage from './features/sleep/SleepPage';
+import NutritionPage from './features/nutrition/NutritionPage';
+import ProductivityPage from './features/productivity/ProductivityPage';
+import DistractionPage from './features/distraction/DistractionPage';
+import JournalPage from './features/journal/JournalPage';
+import TasksPage from './features/tasks/TasksPage';
+import CalendarPage from './features/calendar/CalendarPage';
+import InsightsPage from './features/insights/InsightsPage';
+
+// Music page stub (no table in DB yet)
 const Music = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Music & Environment</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Distraction = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Digital Distraction</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Productivity = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Focus & Flow</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Journal = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Journal & Ideas</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Tasks = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Tasks & Prioritization</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Calendar = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Calendar & Energy Blocks</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
-const Insights = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">AI Counsellor & Patterns</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
 
 function App() {
   const { initializeUser, isLoading } = useAppStore();
@@ -49,16 +51,16 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/nutrition" element={<Nutrition />} />
-            <Route path="/sleep" element={<Sleep />} />
-            <Route path="/mood" element={<Mood />} />
+            <Route path="/nutrition" element={<NutritionPage />} />
+            <Route path="/sleep" element={<SleepPage />} />
+            <Route path="/mood" element={<MoodPage />} />
             <Route path="/music" element={<Music />} />
-            <Route path="/distraction" element={<Distraction />} />
-            <Route path="/productivity" element={<Productivity />} />
-            <Route path="/journal" element={<Journal />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/insights" element={<Insights />} />
+            <Route path="/distraction" element={<DistractionPage />} />
+            <Route path="/productivity" element={<ProductivityPage />} />
+            <Route path="/journal" element={<JournalPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>
