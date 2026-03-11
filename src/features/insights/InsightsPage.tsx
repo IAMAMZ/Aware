@@ -11,6 +11,7 @@ const INSIGHT_ICONS: Record<string, string> = {
   sleep: '🌙',
   nutrition: '🥗',
   distraction: '📱',
+  environment: '🎵',
   pattern: '📊',
 };
 
@@ -45,7 +46,7 @@ export default function InsightsPage() {
           <div>
             <p className="text-sm font-medium text-text-main">How insights work</p>
             <p className="text-xs text-text-muted mt-1">
-              Insights are generated from your logged data across mood, sleep, focus sessions, food, and distractions.
+              Insights are generated from your logged data across mood, sleep, focus sessions, food, distractions, and environment context.
               The more you log, the more accurate and personalized your insights become.
             </p>
           </div>

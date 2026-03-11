@@ -49,6 +49,7 @@ export interface MoodLog {
 
 export type EnergyTag = 'deep' | 'medium' | 'low' | 'autopilot';
 export type CompletionStatus = 'completed' | 'partial' | 'abandoned';
+export type EnvironmentType = 'silence' | 'music' | 'lo-fi' | 'white noise' | 'café' | 'office';
 
 export interface FocusSession {
   id: string;
@@ -57,7 +58,8 @@ export interface FocusSession {
   ended_at: string;
   duration_minutes: number;
   task_label: string | null;
-  music_type: string | null;
+  /** stored in the music_type column */
+  environment: EnvironmentType | null;
   energy_tag: EnergyTag;
   completion_status: CompletionStatus;
   contamination_score: number | null;

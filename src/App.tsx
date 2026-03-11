@@ -22,8 +22,6 @@ import TasksPage from './features/tasks/TasksPage';
 import CalendarPage from './features/calendar/CalendarPage';
 import InsightsPage from './features/insights/InsightsPage';
 
-// Music page stub (no table in DB yet)
-const Music = () => <div className="p-8"><h1 className="text-3xl font-bold text-primary">Music & Environment</h1><p className="mt-4 text-text-muted">Coming soon...</p></div>;
 
 function App() {
   const { initializeUser, isLoading } = useAppStore();
@@ -54,7 +52,6 @@ function App() {
             <Route path="/nutrition" element={<NutritionPage />} />
             <Route path="/sleep" element={<SleepPage />} />
             <Route path="/mood" element={<MoodPage />} />
-            <Route path="/music" element={<Music />} />
             <Route path="/distraction" element={<DistractionPage />} />
             <Route path="/productivity" element={<ProductivityPage />} />
             <Route path="/journal" element={<JournalPage />} />

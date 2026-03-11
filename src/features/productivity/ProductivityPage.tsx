@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import type { FocusSession, EnergyTag, CompletionStatus } from '../../types';
+import type { FocusSession, EnergyTag, CompletionStatus, EnvironmentType } from '../../types';
 import { Play, Square, Timer } from 'lucide-react';
 
 const ENERGY_TAGS: EnergyTag[] = ['deep', 'medium', 'low', 'autopilot'];
@@ -15,6 +15,14 @@ const ENERGY_COLORS: Record<EnergyTag, string> = {
   autopilot: 'text-danger',
 };
 const COMPLETION_OPTIONS: CompletionStatus[] = ['completed', 'partial', 'abandoned'];
+const ENVIRONMENT_OPTIONS: { value: EnvironmentType; emoji: string }[] = [
+  { value: 'silence',     emoji: '🔇' },
+  { value: 'lo-fi',       emoji: '🎵' },
+  { value: 'music',       emoji: '🎧' },
+  { value: 'white noise', emoji: '🌊' },
+  { value: 'café',        emoji: '☕' },
+  { value: 'office',      emoji: '🏢' },
+];
 
 function useTimer(running: boolean) {
   const [elapsed, setElapsed] = useState(0);
@@ -43,6 +51,7 @@ export default function ProductivityPage() {
   const [sessionStart, setSessionStart] = useState<string | null>(null);
   const [taskLabel, setTaskLabel] = useState('');
   const [energyTag, setEnergyTag] = useState<EnergyTag>('deep');
+  const [environment, setEnvironment] = useState<EnvironmentType>('silence');
   const [completionStatus, setCompletionStatus] = useState<CompletionStatus>('completed');
   const [notes, setNotes] = useState('');
   const [interruptions, setInterruptions] = useState(0);
@@ -74,6 +83,7 @@ export default function ProductivityPage() {
         ended_at: new Date().toISOString(),
         duration_minutes: mins,
         task_label: taskLabel || null,
+        music_type: environment,
         energy_tag: energyTag,
         completion_status: completionStatus,
         interruption_count: interruptions,
@@ -145,6 +155,19 @@ export default function ProductivityPage() {
                         energyTag === t ? 'bg-primary/10 border-primary text-text-main' : 'border-border text-text-muted hover:border-primary'
                       }`}>
                       <span className={ENERGY_COLORS[t]}>●</span> {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-text-muted mb-2">Environment</p>
+                <div className="flex gap-2 flex-wrap">
+                  {ENVIRONMENT_OPTIONS.map(({ value, emoji }) => (
+                    <button key={value} onClick={() => setEnvironment(value)}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors duration-150 ${
+                        environment === value ? 'bg-primary text-white border-primary' : 'border-border text-text-muted hover:border-primary'
+                      }`}>
+                      {emoji} {value}
                     </button>
                   ))}
                 </div>
@@ -221,6 +244,9 @@ export default function ProductivityPage() {
                     </div>
                     <div className="text-xs text-text-muted mt-0.5">
                       {s.completion_status} • {s.interruption_count} interruptions
+                      {s.environment && <span className="ml-2">
+                        {ENVIRONMENT_OPTIONS.find(e => e.value === s.environment)?.emoji} {s.environment}
+                      </span>}
                     </div>
                   </div>
                   <div className="text-right">
