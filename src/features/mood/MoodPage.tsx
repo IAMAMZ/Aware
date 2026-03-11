@@ -5,9 +5,11 @@ import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import type { MoodLog } from '../../types';
+import { Zap } from 'lucide-react';
 
 const EMOTION_TAGS = ['happy', 'anxious', 'focused', 'tired', 'irritable', 'calm', 'overwhelmed', 'motivated', 'sad', 'grateful'];
 const MOOD_EMOJIS = ['', '😞', '😕', '😐', '🙂', '😄'];
+const MOOD_LABELS = ['', 'Terrible', 'Poor', 'OK', 'Good', 'Great'];
 
 export default function MoodPage() {
   const { user } = useAppStore();
@@ -19,6 +21,7 @@ export default function MoodPage() {
   const [rsdMoment, setRsdMoment] = useState(false);
   const [notes, setNotes] = useState('');
   const [success, setSuccess] = useState(false);
+  const [quickSuccess, setQuickSuccess] = useState<number | null>(null);
 
   const { data: logs, isLoading } = useQuery({
     queryKey: ['mood-logs', user?.id],
@@ -35,6 +38,7 @@ export default function MoodPage() {
     },
   });
 
+  // Full detailed log mutation
   const mutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from('mood_logs').insert({
@@ -61,12 +65,69 @@ export default function MoodPage() {
     },
   });
 
+  // One-tap quick log mutation
+  const quickMutation = useMutation({
+    mutationFn: async (score: number) => {
+      const { error } = await supabase.from('mood_logs').insert({
+        user_id: user!.id,
+        timestamp: new Date().toISOString(),
+        mood_score: score,
+        emotion_tags: [],
+        stress_event: false,
+        rsd_moment: false,
+        notes: null,
+      });
+      if (error) throw error;
+      return score;
+    },
+    onSuccess: (score) => {
+      queryClient.invalidateQueries({ queryKey: ['mood-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      setQuickSuccess(score);
+      setTimeout(() => setQuickSuccess(null), 2500);
+    },
+  });
+
   const toggleTag = (tag: string) =>
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
 
   return (
     <div className="space-y-6 pb-12">
-      <h1 className="text-3xl font-bold text-text-main">Emotions & Mood</h1>
+      <h1 className="text-3xl font-bold text-text-main">Emotions &amp; Mood</h1>
+
+      {/* ── Quick One-Tap Mood Log ── */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="py-4 px-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-primary" />
+            <p className="text-sm font-semibold text-primary">Quick Log</p>
+            <span className="text-xs text-text-muted ml-1">— tap an emoji to log instantly</span>
+          </div>
+          {quickSuccess !== null ? (
+            <div className="flex items-center gap-2 py-1">
+              <span className="text-3xl">{MOOD_EMOJIS[quickSuccess]}</span>
+              <div>
+                <p className="text-sm font-semibold text-primary">✓ Mood logged — {MOOD_LABELS[quickSuccess]}!</p>
+                <p className="text-xs text-text-muted">Tap again anytime to update</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-5 justify-center">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => quickMutation.mutate(n)}
+                  disabled={quickMutation.isPending}
+                  title={MOOD_LABELS[n]}
+                  className="text-4xl transition-all duration-150 hover:scale-125 active:scale-95 disabled:opacity-50"
+                >
+                  {MOOD_EMOJIS[n]}
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Log Your Mood</CardTitle></CardHeader>

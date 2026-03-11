@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import FAB from '../ui/FAB';
 
 export default function Layout() {
   return (
@@ -21,6 +22,7 @@ export default function Layout() {
           <div className="py-6 px-4 sm:px-6 md:px-8">
             <Outlet />
           </div>
+          <FAB />
         </main>
       </div>
     </div>
