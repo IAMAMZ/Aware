@@ -1,169 +1,322 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import type { CalendarEvent } from '../../types';
-import { Calendar, Clock, Zap } from 'lucide-react';
+import {
+  getWeekDays,
+  getNextWeek,
+  getPrevWeek,
+  formatWeekRange,
+  format,
+} from './calendarUtils';
+import WeekGrid from './WeekGrid';
+import EventModal from './EventModal';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
-const ENERGY_TYPES = ['deep', 'admin', 'creative', 'physical', 'social', 'rest'];
+type ViewMode = 'week' | 'day';
 
 export default function CalendarPage() {
   const { user } = useAppStore();
   const queryClient = useQueryClient();
 
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [energyType, setEnergyType] = useState('admin');
-  const [isFocusBlock, setIsFocusBlock] = useState(false);
-  const [notes, setNotes] = useState('');
+  // Navigation state
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
 
-  const { data: events, isLoading } = useQuery({
-    queryKey: ['calendar-events', user?.id],
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [defaultStart, setDefaultStart] = useState('');
+  const [defaultEnd, setDefaultEnd] = useState('');
+
+  // Compute visible days
+  const visibleDays = viewMode === 'week'
+    ? getWeekDays(currentDate)
+    : [currentDate];
+
+  // Date range for query
+  const rangeStart = visibleDays[0];
+  const rangeEnd = new Date(visibleDays[visibleDays.length - 1]);
+  rangeEnd.setHours(23, 59, 59, 999);
+
+  // ── Query events ──
+  const { data: events = [], isLoading } = useQuery({
+    queryKey: ['calendar-events', user?.id, rangeStart.toISOString(), rangeEnd.toISOString()],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('calendar_events')
         .select('*')
         .eq('user_id', user!.id)
-        .gte('start_time', new Date(Date.now() - 86400000).toISOString()) // yesterday onwards
-        .order('start_time', { ascending: true })
-        .limit(30);
+        .gte('start_time', rangeStart.toISOString())
+        .lte('start_time', rangeEnd.toISOString())
+        .order('start_time', { ascending: true });
       if (error) throw error;
       return data as CalendarEvent[];
     },
   });
 
+  // ── Mutations ──
   const addMutation = useMutation({
-    mutationFn: async () => {
-      if (!title.trim() || !startTime || !endTime) throw new Error('Title, start, and end time required');
+    mutationFn: async (data: {
+      title: string;
+      start_time: string;
+      end_time: string;
+      energy_type: string;
+      is_focus_block: boolean;
+      notes: string | null;
+    }) => {
       const { error } = await supabase.from('calendar_events').insert({
         user_id: user!.id,
-        title: title.trim(),
-        start_time: new Date(startTime).toISOString(),
-        end_time: new Date(endTime).toISOString(),
-        energy_type: energyType,
-        is_focus_block: isFocusBlock,
-        notes: notes || null,
+        ...data,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
-      setTitle(''); setStartTime(''); setEndTime(''); setNotes('');
-      setIsFocusBlock(false); setShowForm(false);
+      closeModal();
     },
   });
 
-  const grouped = events?.reduce((acc, e) => {
-    const day = new Date(e.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    if (!acc[day]) acc[day] = [];
-    acc[day].push(e);
-    return acc;
-  }, {} as Record<string, CalendarEvent[]>) || {};
+  const updateMutation = useMutation({
+    mutationFn: async (data: {
+      id: string;
+      title: string;
+      start_time: string;
+      end_time: string;
+      energy_type: string;
+      is_focus_block: boolean;
+      notes: string | null;
+    }) => {
+      const { id, ...rest } = data;
+      const { error } = await supabase.from('calendar_events').update(rest).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      closeModal();
+    },
+  });
 
-  const formatTime = (t: string) =>
-    new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('calendar_events').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      closeModal();
+    },
+  });
 
-  const durationMins = (start: string, end: string) =>
-    Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  const checkinMutation = useMutation({
+    mutationFn: async ({ eventId, status, reason }: { eventId: string; status: string; reason?: string }) => {
+      const { error } = await supabase.from('calendar_checkins').insert({
+        user_id: user!.id,
+        event_id: eventId,
+        status,
+        sidetrack_reason: reason || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-checkins'] });
+    },
+  });
+
+  const handleCheckin = useCallback(
+    (eventId: string, status: 'on_track' | 'sidetracked', reason?: string) => {
+      checkinMutation.mutate({ eventId, status, reason });
+    },
+    [checkinMutation]
+  );
+
+  // ── Modal handlers ──
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingEvent(null);
+    setDefaultStart('');
+    setDefaultEnd('');
+  }, []);
+
+  const handleEventClick = useCallback((event: CalendarEvent) => {
+    setEditingEvent(event);
+    setModalOpen(true);
+  }, []);
+
+  const handleSlotClick = useCallback((day: Date, hour: number, minute: number = 0) => {
+    const start = new Date(day);
+    start.setHours(hour, minute, 0, 0);
+    const end = new Date(day);
+    // Default to 30 minutes for new events from slot click
+    const endMinute = minute + 30;
+    end.setHours(hour + Math.floor(endMinute / 60), endMinute % 60, 0, 0);
+
+    // Format for datetime-local input
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const toLocal = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    setDefaultStart(toLocal(start));
+    setDefaultEnd(toLocal(end));
+    setEditingEvent(null);
+    setModalOpen(true);
+  }, []);
+
+  const handleSave = useCallback(
+    (data: {
+      title: string;
+      start_time: string;
+      end_time: string;
+      energy_type: string;
+      is_focus_block: boolean;
+      notes: string | null;
+    }) => {
+      if (editingEvent) {
+        updateMutation.mutate({ id: editingEvent.id, ...data });
+      } else {
+        addMutation.mutate(data);
+      }
+    },
+    [editingEvent, addMutation, updateMutation]
+  );
+
+  const handleDelete = useCallback(
+    (id: string) => { deleteMutation.mutate(id); },
+    [deleteMutation]
+  );
+
+  // ── Navigation ──
+  const goToday = () => setCurrentDate(new Date());
+  const goPrev = () => {
+    if (viewMode === 'week') {
+      setCurrentDate((d) => getPrevWeek(d));
+    } else {
+      setCurrentDate((d) => {
+        const prev = new Date(d);
+        prev.setDate(prev.getDate() - 1);
+        return prev;
+      });
+    }
+  };
+  const goNext = () => {
+    if (viewMode === 'week') {
+      setCurrentDate((d) => getNextWeek(d));
+    } else {
+      setCurrentDate((d) => {
+        const next = new Date(d);
+        next.setDate(next.getDate() + 1);
+        return next;
+      });
+    }
+  };
+
+  const headerText = viewMode === 'week'
+    ? formatWeekRange(currentDate)
+    : format(currentDate, 'EEEE, MMMM d, yyyy');
 
   return (
-    <div className="space-y-6 pb-12">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-text-main">Calendar & Energy Blocks</h1>
-        <Button variant="primary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : '+ Add Event'}
-        </Button>
+    <div className="space-y-4 pb-12">
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-text-main">Calendar</h1>
+          <Button variant="secondary" size="sm" onClick={goToday}>
+            Today
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex border border-border rounded-sm overflow-hidden">
+            <button
+              className={`px-3 py-1.5 text-xs font-medium transition-colors
+                ${viewMode === 'day' ? 'bg-primary text-white' : 'bg-white text-text-muted hover:bg-forest'}`}
+              onClick={() => setViewMode('day')}
+            >
+              Day
+            </button>
+            <button
+              className={`px-3 py-1.5 text-xs font-medium transition-colors
+                ${viewMode === 'week' ? 'bg-primary text-white' : 'bg-white text-text-muted hover:bg-forest'}`}
+              onClick={() => setViewMode('week')}
+            >
+              Week
+            </button>
+          </div>
+
+          <Button variant="primary" size="sm" onClick={() => { setEditingEvent(null); setModalOpen(true); }} className="gap-1">
+            <Plus className="w-4 h-4" /> Event
+          </Button>
+        </div>
       </div>
 
-      {showForm && (
-        <Card>
-          <CardHeader><CardTitle>New Event</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <input type="text" placeholder="Event title..." value={title} onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-background border border-border rounded-sm px-3 py-2 text-sm text-text-main placeholder-text-muted focus:outline-none focus:border-primary" />
+      {/* ── Date navigation ── */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={goPrev}
+          className="p-1.5 rounded-sm hover:bg-forest transition-colors text-text-muted hover:text-text-main"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <button
+          onClick={goNext}
+          className="p-1.5 rounded-sm hover:bg-forest transition-colors text-text-muted hover:text-text-main"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+        <h2 className="text-lg font-semibold text-text-main">{headerText}</h2>
+      </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-text-muted mb-1 block">Start</label>
-                <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full bg-background border border-border rounded-sm px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary" />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted mb-1 block">End</label>
-                <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full bg-background border border-border rounded-sm px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary" />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-text-muted mb-2">Energy type</p>
-              <div className="flex flex-wrap gap-2">
-                {ENERGY_TYPES.map((e) => (
-                  <button key={e} onClick={() => setEnergyType(e)}
-                    className={`px-3 py-1 rounded-full text-sm border transition-colors ${energyType === e ? 'bg-primary text-white border-primary' : 'border-border text-text-muted hover:border-primary'}`}>
-                    {e}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <div onClick={() => setIsFocusBlock(!isFocusBlock)}
-                className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${isFocusBlock ? 'bg-primary' : 'bg-border'}`}>
-                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isFocusBlock ? 'translate-x-4' : ''}`} />
-              </div>
-              <span className="text-sm text-text-muted">Focus block</span>
-            </label>
-
-            <input type="text" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-background border border-border rounded-sm px-3 py-2 text-sm text-text-main placeholder-text-muted focus:outline-none focus:border-primary" />
-
-            <Button variant="primary" onClick={() => addMutation.mutate()} disabled={addMutation.isPending} className="w-full">
-              {addMutation.isPending ? 'Adding...' : 'Add Event'}
-            </Button>
-            {addMutation.isError && <p className="text-danger text-sm">{(addMutation.error as Error).message}</p>}
-          </CardContent>
-        </Card>
-      )}
-
+      {/* ── Grid ── */}
       {isLoading ? (
-        <p className="text-text-muted text-sm">Loading...</p>
-      ) : !Object.keys(grouped).length ? (
-        <div className="text-center py-12 text-text-muted">
-          <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>No upcoming events. Add one above.</p>
+        <div className="flex items-center justify-center py-20">
+          <div className="text-text-muted flex flex-col items-center gap-3">
+            <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+            <span className="text-sm">Loading events...</span>
+          </div>
         </div>
       ) : (
-        Object.entries(grouped).map(([day, dayEvents]) => (
-          <div key={day}>
-            <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">{day}</h2>
-            <div className="space-y-2">
-              {dayEvents.map((event) => (
-                <Card key={event.id} className={event.is_focus_block ? 'border-primary/30 bg-primary/5' : ''}>
-                  <CardContent className="p-4 flex items-center gap-4">
-                    {event.is_focus_block && <Zap className="w-5 h-5 text-primary flex-shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text-main">{event.title}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-text-muted flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatTime(event.start_time)} – {formatTime(event.end_time)}
-                          <span className="ml-1">({durationMins(event.start_time, event.end_time)}m)</span>
-                        </span>
-                        {event.energy_type && <span className="text-xs text-primary">{event.energy_type}</span>}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        ))
+        <WeekGrid
+          days={visibleDays}
+          events={events}
+          onEventClick={handleEventClick}
+          onSlotClick={handleSlotClick}
+        />
+      )}
+
+      {/* ── Energy type legend ── */}
+      <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
+        <span className="font-medium">Energy types:</span>
+        {[
+          { type: 'deep', color: 'bg-indigo-400' },
+          { type: 'admin', color: 'bg-slate-400' },
+          { type: 'creative', color: 'bg-amber-400' },
+          { type: 'physical', color: 'bg-emerald-400' },
+          { type: 'social', color: 'bg-pink-400' },
+          { type: 'rest', color: 'bg-sky-400' },
+        ].map(({ type, color }) => (
+          <span key={type} className="flex items-center gap-1 capitalize">
+            <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
+            {type}
+          </span>
+        ))}
+      </div>
+
+      {/* ── Modal ── */}
+      {modalOpen && (
+        <EventModal
+          event={editingEvent}
+          defaultStart={defaultStart}
+          defaultEnd={defaultEnd}
+          onSave={handleSave}
+          onCheckin={handleCheckin}
+          onDelete={editingEvent ? handleDelete : undefined}
+          onClose={closeModal}
+          isSaving={addMutation.isPending || updateMutation.isPending}
+        />
       )}
     </div>
   );

@@ -121,7 +121,21 @@ export interface CalendarEvent {
   energy_type: string | null;
   is_focus_block: boolean;
   glucose_prep_noted: boolean;
+  color: string | null;
+  recurrence: string | null;
   notes: string | null;
+}
+
+export type CheckinStatus = 'on_track' | 'sidetracked';
+export type SidetrackReason = 'phone' | 'email' | 'rabbit_hole' | 'snack' | 'rest' | 'other';
+
+export interface CalendarCheckin {
+  id: string;
+  user_id: string;
+  event_id: string;
+  timestamp: string;
+  status: CheckinStatus;
+  sidetrack_reason: SidetrackReason | null;
 }
 
 export interface InsightsCache {
@@ -132,4 +146,14 @@ export interface InsightsCache {
   insight_body: string;
   data_range_start: string;
   data_range_end: string;
+}
+
+export interface DailyIntention {
+  id: string;
+  user_id: string;
+  date: string;
+  intention: string | null;
+  top_priorities: string[] | null;
+  morning_energy: number | null;
+  intention_met: boolean | null;
 }

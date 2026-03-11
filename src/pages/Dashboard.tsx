@@ -20,6 +20,7 @@ import {
   X,
   ChevronDown,
 } from 'lucide-react';
+import RightNowWidget from '../features/calendar/RightNowWidget';
 
 // ─── Types ────────────────────────────────────────────────────────────
 type ActivePanel = 'mood' | 'food' | 'focus' | null;
@@ -258,6 +259,28 @@ export default function Dashboard() {
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </div>
       </div>
+
+      {/* ── Morning Day Ahead Prompt (before noon) ── */}
+      {new Date().getHours() < 12 && (
+        <button
+          onClick={() => navigate('/ahead')}
+          className="w-full p-4 rounded-sm border border-amber-200/50 bg-gradient-to-r from-amber-50 to-transparent
+            hover:from-amber-100 transition-colors text-left group"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">☀️</span>
+            <div>
+              <p className="text-sm font-semibold text-text-main group-hover:text-amber-700 transition-colors">
+                Start your day
+              </p>
+              <p className="text-xs text-text-muted">Review your schedule, set an intention, and pick your top priorities →</p>
+            </div>
+          </div>
+        </button>
+      )}
+
+      {/* ── Right Now — ADHD Schedule Accountability ── */}
+      <RightNowWidget />
 
       {/* ── Quick Action Buttons ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -523,6 +546,25 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Evening Wind-Down Prompt (after 7 PM) ── */}
+      {new Date().getHours() >= 19 && (
+        <button
+          onClick={() => navigate('/review')}
+          className="w-full mt-6 p-4 rounded-sm border border-primary/20 bg-gradient-to-r from-primary/5 to-transparent
+            hover:from-primary/10 transition-colors text-left group"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🌙</span>
+            <div>
+              <p className="text-sm font-semibold text-text-main group-hover:text-primary transition-colors">
+                Ready to close the day?
+              </p>
+              <p className="text-xs text-text-muted">Review what you did, check in on your schedule, and wind down →</p>
+            </div>
+          </div>
+        </button>
+      )}
     </div>
   );
 }

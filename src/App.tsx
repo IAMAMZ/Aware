@@ -20,6 +20,8 @@ import DistractionPage from './features/distraction/DistractionPage';
 import JournalPage from './features/journal/JournalPage';
 import TasksPage from './features/tasks/TasksPage';
 import CalendarPage from './features/calendar/CalendarPage';
+import DayAheadPage from './features/ahead/DayAheadPage';
+import DayReviewPage from './features/review/DayReviewPage';
 import InsightsPage from './features/insights/InsightsPage';
 
 
@@ -57,6 +59,8 @@ function App() {
             <Route path="/journal" element={<JournalPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/ahead" element={<DayAheadPage />} />
+            <Route path="/review" element={<DayReviewPage />} />
             <Route path="/insights" element={<InsightsPage />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

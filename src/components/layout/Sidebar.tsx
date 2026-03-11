@@ -9,7 +9,9 @@ import {
   Timer, 
   BookText, 
   CheckSquare, 
-  Calendar, 
+  Calendar,
+  Sunrise,
+  Sunset,
   BrainCircuit, 
   Settings,
   LogOut
@@ -26,6 +28,8 @@ const navItems = [
   { path: '/journal', label: 'Journal', icon: BookText },
   { path: '/tasks', label: 'Tasks', icon: CheckSquare },
   { path: '/calendar', label: 'Calendar', icon: Calendar },
+  { path: '/ahead', label: 'Day Ahead', icon: Sunrise },
+  { path: '/review', label: 'Day Review', icon: Sunset },
   { path: '/insights', label: 'AI Counsellor', icon: BrainCircuit },
 ];
 
