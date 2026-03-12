@@ -21,6 +21,7 @@ import {
   Zap,
   Coffee,
 } from 'lucide-react';
+import UrgeSurfModal from './../nutrition/UrgeSurfModal';
 
 const SIDETRACK_REASONS = [
   { key: 'phone', label: '📱 Phone', emoji: '📱' },
@@ -73,6 +74,7 @@ export default function RightNowWidget() {
   const [checkinStatus, setCheckinStatus] = useState<'on_track' | 'sidetracked' | null>(null);
   const [showReasons, setShowReasons] = useState(false);
   const [_selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [showUrgeSurf, setShowUrgeSurf] = useState(false);
 
   // Reset check-in when the current event changes
   useEffect(() => {
@@ -120,6 +122,10 @@ export default function RightNowWidget() {
   const handleReasonSelect = (reason: string) => {
     setSelectedReason(reason);
     setShowReasons(false);
+    
+    if (reason === 'snack') {
+      setShowUrgeSurf(true);
+    }
     // TODO: persist reason to calendar_checkins table
   };
 
@@ -180,25 +186,25 @@ export default function RightNowWidget() {
             <div className="flex gap-2">
               <button
                 onClick={() => handleCheckin('on_track')}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-sm
-                  bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium
-                  hover:bg-emerald-100 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
+                  bg-emerald-50 ring-1 ring-inset ring-emerald-500/20 text-emerald-700 text-sm font-medium
+                  hover:bg-emerald-100 hover:shadow-sm transition-all"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 I'm on it
               </button>
               <button
                 onClick={() => handleCheckin('sidetracked')}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-sm
-                  bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium
-                  hover:bg-amber-100 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
+                  bg-amber-50 ring-1 ring-inset ring-amber-500/20 text-amber-700 text-sm font-medium
+                  hover:bg-amber-100 hover:shadow-sm transition-all"
               >
                 <RotateCcw className="w-4 h-4" />
                 Got sidetracked
               </button>
             </div>
           ) : checkinStatus === 'on_track' ? (
-            <div className="flex items-center gap-2 py-2 px-3 rounded-sm bg-emerald-50 border border-emerald-200">
+            <div className="flex items-center gap-2 py-3 px-4 rounded-xl bg-emerald-50 ring-1 ring-inset ring-emerald-500/20 shadow-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span className="text-sm font-medium text-emerald-700">Nice! Keep going 💪</span>
             </div>
@@ -210,8 +216,8 @@ export default function RightNowWidget() {
                   <button
                     key={r.key}
                     onClick={() => handleReasonSelect(r.key)}
-                    className="py-2 px-2 rounded-sm border border-border text-xs text-text-muted
-                      hover:border-amber-400 hover:bg-amber-50 transition-colors text-center"
+                    className="py-2.5 px-2 rounded-xl ring-1 ring-inset ring-black/5 text-xs text-text-muted
+                      hover:ring-amber-400/50 hover:bg-amber-50 hover:text-amber-800 transition-all text-center shadow-sm"
                   >
                     <span className="text-lg block mb-0.5">{r.emoji}</span>
                     {r.label.split(' ').slice(1).join(' ')}
@@ -220,7 +226,7 @@ export default function RightNowWidget() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 py-2 px-3 rounded-sm bg-amber-50 border border-amber-200">
+            <div className="flex items-center gap-3 py-3 px-4 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-500/20 shadow-sm">
               <RotateCcw className="w-4 h-4 text-amber-600" />
               <span className="text-sm text-amber-700">
                 Noted! No judgment — get back to <strong>{currentEvent.title}</strong> when you can
@@ -228,6 +234,17 @@ export default function RightNowWidget() {
             </div>
           )}
         </CardContent>
+
+        {showUrgeSurf && (
+          <UrgeSurfModal
+            triggerSource="snack_sidetrack"
+            onClose={() => setShowUrgeSurf(false)}
+            onRedirected={() => {
+              setShowUrgeSurf(false);
+              setCheckinStatus('on_track');
+            }}
+          />
+        )}
       </Card>
     );
   }

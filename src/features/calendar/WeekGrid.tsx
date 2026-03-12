@@ -7,6 +7,7 @@ import {
   SLOT_MINUTES,
   GRID_HEIGHT,
   START_HOUR,
+  END_HOUR,
   getEventsForDay,
   formatDayHeader,
   isToday,
@@ -35,7 +36,7 @@ export default function WeekGrid({ days, events, onEventClick, onSlotClick }: We
   const now = new Date();
   const nowHours = now.getHours() + now.getMinutes() / 60;
   const nowY = Math.max(0, (nowHours - START_HOUR) * HOUR_HEIGHT);
-  const showNowLine = nowHours >= START_HOUR && nowHours <= 22;
+  const showNowLine = nowHours >= START_HOUR && nowHours <= END_HOUR;
 
   return (
     <div className="border border-border rounded-sm bg-white overflow-hidden">

@@ -157,3 +157,20 @@ export interface DailyIntention {
   morning_energy: number | null;
   intention_met: boolean | null;
 }
+
+export type UrgeSurfTriggerSource = 'dashboard_button' | 'focus_nudge' | 'snack_sidetrack' | 'productivity_button';
+export type UrgeSurfOutcome = 'redirected' | 'ate_anyway' | 'dismissed';
+
+export interface UrgeSurfLog {
+  id: string;
+  user_id: string;
+  timestamp: string;
+  trigger_source: UrgeSurfTriggerSource;
+  pre_intensity: number | null;
+  post_intensity: number | null;
+  outcome: UrgeSurfOutcome;
+  redirect_activity: string | null;
+  breathing_completed: boolean;
+  notes: string | null;
+  focus_session_id: string | null;
+}

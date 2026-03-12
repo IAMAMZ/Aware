@@ -5,7 +5,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import type { FocusSession, EnergyTag, CompletionStatus, EnvironmentType } from '../../types';
-import { Play, Square, Timer } from 'lucide-react';
+import { Play, Square, Timer, Activity } from 'lucide-react';
+import UrgeSurfModal from '../nutrition/UrgeSurfModal';
 
 const ENERGY_TAGS: EnergyTag[] = ['deep', 'medium', 'low', 'autopilot'];
 const ENERGY_COLORS: Record<EnergyTag, string> = {
@@ -55,8 +56,18 @@ export default function ProductivityPage() {
   const [completionStatus, setCompletionStatus] = useState<CompletionStatus>('completed');
   const [notes, setNotes] = useState('');
   const [interruptions, setInterruptions] = useState(0);
+  const [showUrgeSurf, setShowUrgeSurf] = useState<{ show: boolean, source: 'productivity_button' | 'focus_nudge' }>({ show: false, source: 'productivity_button' });
+  const [hasPromptedUrgeSurfThisSession, setHasPromptedUrgeSurfThisSession] = useState(false);
 
   const { elapsed, fmt, reset } = useTimer(running);
+
+  // Trigger Urge Surf nudge after 25 minutes of focus
+  useEffect(() => {
+    if (running && elapsed >= 25 * 60 && !hasPromptedUrgeSurfThisSession) {
+      setShowUrgeSurf({ show: true, source: 'focus_nudge' });
+      setHasPromptedUrgeSurfThisSession(true);
+    }
+  }, [running, elapsed, hasPromptedUrgeSurfThisSession]);
 
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['focus-sessions', user?.id],
@@ -106,6 +117,7 @@ export default function ProductivityPage() {
   const handleStart = () => {
     setSessionStart(new Date().toISOString());
     setRunning(true);
+    setHasPromptedUrgeSurfThisSession(false);
   };
 
   const handleStop = () => {
@@ -175,9 +187,24 @@ export default function ProductivityPage() {
             </div>
           )}
 
-          {/* Stop config */}
+          {/* Running session extras */}
           {running && (
             <div className="space-y-4">
+              <button
+                onClick={() => setShowUrgeSurf({ show: true, source: 'productivity_button' })}
+                className="w-full p-3 rounded-sm border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-left flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3">
+                  <Activity className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold text-text-main group-hover:text-primary transition-colors">
+                      Urge Surf Check-in 🧘
+                    </p>
+                    <p className="text-xs text-text-muted">Feeling the urge to snack or get distracted? Take a 2-min pause first →</p>
+                  </div>
+                </div>
+              </button>
+
               <div>
                 <p className="text-xs text-text-muted mb-2">How did it go?</p>
                 <div className="flex gap-2">
@@ -261,6 +288,13 @@ export default function ProductivityPage() {
           )}
         </CardContent>
       </Card>
+
+      {showUrgeSurf.show && (
+        <UrgeSurfModal
+          triggerSource={showUrgeSurf.source}
+          onClose={() => setShowUrgeSurf({ show: false, source: 'productivity_button' })}
+        />
+      )}
     </div>
   );
 }

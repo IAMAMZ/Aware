@@ -19,8 +19,10 @@ import {
   Utensils,
   X,
   ChevronDown,
+  Activity
 } from 'lucide-react';
 import RightNowWidget from '../features/calendar/RightNowWidget';
+import UrgeSurfModal from '../features/nutrition/UrgeSurfModal';
 
 // ─── Types ────────────────────────────────────────────────────────────
 type ActivePanel = 'mood' | 'food' | 'focus' | null;
@@ -56,7 +58,7 @@ function useTimer(running: boolean) {
 // ─── InlinePanel wrapper ──────────────────────────────────────────────
 function InlinePanel({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
-    <Card className="border-primary/40 bg-primary/5 relative">
+    <Card className="ring-1 ring-primary/20 bg-primary/5 relative shadow-md mt-4">
       <button
         onClick={onClose}
         className="absolute top-3 right-3 text-text-muted hover:text-text-main transition-colors"
@@ -77,6 +79,9 @@ export default function Dashboard() {
   const qc        = useQueryClient();
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+  const [showUrgeSurf, setShowUrgeSurf] = useState<{ show: boolean, source: 'dashboard_button' | 'focus_nudge' }>({ show: false, source: 'dashboard_button' });
+  const [hasPromptedUrgeSurfThisSession, setHasPromptedUrgeSurfThisSession] = useState(false);
+
   const toggle = (panel: ActivePanel) =>
     setActivePanel((prev) => (prev === panel ? null : panel));
 
@@ -137,6 +142,15 @@ export default function Dashboard() {
   const [sessionStart, setSessionStart]     = useState<string | null>(null);
   const [taskLabel, setTaskLabel]           = useState('');
   const { elapsed, fmt, reset }             = useTimer(focusRunning);
+  
+  // Trigger Urge Surf nudge after 25 minutes of focus
+  useEffect(() => {
+    if (focusRunning && elapsed >= 25 * 60 && !hasPromptedUrgeSurfThisSession) {
+      setShowUrgeSurf({ show: true, source: 'focus_nudge' });
+      setHasPromptedUrgeSurfThisSession(true);
+    }
+  }, [focusRunning, elapsed, hasPromptedUrgeSurfThisSession]);
+
   const focusMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from('focus_sessions').insert({
@@ -163,6 +177,7 @@ export default function Dashboard() {
   const handleStartFocus = () => {
     setSessionStart(new Date().toISOString());
     setFocusRunning(true);
+    setHasPromptedUrgeSurfThisSession(false);
   };
   const handleStopFocus = () => {
     setFocusRunning(false);
@@ -264,8 +279,8 @@ export default function Dashboard() {
       {new Date().getHours() < 12 && (
         <button
           onClick={() => navigate('/ahead')}
-          className="w-full p-4 rounded-sm border border-amber-200/50 bg-gradient-to-r from-amber-50 to-transparent
-            hover:from-amber-100 transition-colors text-left group"
+          className="w-full p-4 rounded-2xl ring-1 ring-inset ring-black/5 bg-gradient-to-r from-amber-50 to-transparent
+            hover:from-amber-100 hover:shadow-md transition-all duration-300 text-left group"
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">☀️</span>
@@ -282,15 +297,47 @@ export default function Dashboard() {
       {/* ── Right Now — ADHD Schedule Accountability ── */}
       <RightNowWidget />
 
+      {/* ── Focus Session Nudge ── */}
+      {focusRunning && (
+        <button
+          onClick={() => setShowUrgeSurf({ show: true, source: 'focus_nudge' })}
+          className="w-full mt-2 p-4 rounded-2xl ring-1 ring-inset ring-black/5 bg-primary/5 hover:bg-primary/10 transition-all shadow-sm hover:shadow-md text-left flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-text-main group-hover:text-primary transition-colors">
+                Urge Surf Check-in 🧘
+              </p>
+              <p className="text-xs text-text-muted">Feeling the urge to snack or get distracted? Take a 2-min pause first →</p>
+            </div>
+          </div>
+        </button>
+      )}
+
       {/* ── Quick Action Buttons ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {/* Urge Surf */}
+        <button
+          onClick={() => setShowUrgeSurf({ show: true, source: 'dashboard_button' })}
+          className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl ring-1 ring-inset text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
+            showUrgeSurf.show && showUrgeSurf.source === 'dashboard_button'
+              ? 'bg-primary text-white ring-primary'
+              : 'bg-card ring-black/5 text-text-muted hover:ring-black/10 hover:text-text-main'
+          }`}
+        >
+          <Activity className="w-5 h-5" />
+          <span>Urge Surf</span>
+          <span className="text-xs opacity-60">Intercept Cravings</span>
+        </button>
+
         {/* Log Food */}
         <button
           onClick={() => toggle('food')}
-          className={`flex flex-col items-center gap-2 py-3 px-2 rounded-sm border text-sm font-medium transition-colors duration-150 ${
+          className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl ring-1 ring-inset text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
             activePanel === 'food'
-              ? 'bg-primary text-white border-primary'
-              : 'bg-card border-border text-text-muted hover:border-primary hover:text-primary'
+              ? 'bg-primary text-white ring-primary'
+              : 'bg-card ring-black/5 text-text-muted hover:ring-black/10 hover:text-text-main'
           }`}
         >
           <Utensils className="w-5 h-5" />
@@ -301,10 +348,10 @@ export default function Dashboard() {
         {/* Focus Session */}
         <button
           onClick={() => toggle('focus')}
-          className={`flex flex-col items-center gap-2 py-3 px-2 rounded-sm border text-sm font-medium transition-colors duration-150 ${
+          className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl ring-1 ring-inset text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
             activePanel === 'focus' || focusRunning
-              ? 'bg-primary text-white border-primary'
-              : 'bg-card border-border text-text-muted hover:border-primary hover:text-primary'
+              ? 'bg-primary text-white ring-primary'
+              : 'bg-card ring-black/5 text-text-muted hover:ring-black/10 hover:text-text-main'
           }`}
         >
           {focusRunning ? <Square className="w-5 h-5" /> : <Play className="w-5 h-5" />}
@@ -315,10 +362,10 @@ export default function Dashboard() {
         {/* Mood Check */}
         <button
           onClick={() => toggle('mood')}
-          className={`flex flex-col items-center gap-2 py-3 px-2 rounded-sm border text-sm font-medium transition-colors duration-150 ${
+          className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl ring-1 ring-inset text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
             activePanel === 'mood'
-              ? 'bg-warning text-white border-warning'
-              : 'bg-card border-border text-text-muted hover:border-warning hover:text-warning'
+              ? 'bg-warning text-white ring-warning'
+              : 'bg-card ring-black/5 text-text-muted hover:ring-black/10 hover:text-text-main'
           }`}
         >
           <Smile className="w-5 h-5" />
@@ -329,7 +376,7 @@ export default function Dashboard() {
         {/* Journal — still navigates, needs full page */}
         <button
           onClick={() => navigate('/journal')}
-          className="flex flex-col items-center gap-2 py-3 px-2 rounded-sm border border-border bg-card text-text-muted text-sm font-medium hover:border-primary hover:text-primary transition-colors duration-150"
+          className="flex flex-col items-center gap-2 py-4 px-2 rounded-2xl ring-1 ring-inset ring-black/5 bg-card text-text-muted text-sm font-medium hover:ring-black/10 hover:text-text-main hover:shadow-md transition-all duration-200 shadow-sm"
         >
           <BookText className="w-5 h-5" />
           <span>Journal Entry</span>
@@ -547,12 +594,12 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* ── Evening Wind-Down Prompt (after 7 PM) ── */}
+      {/* Evening Wind-Down Prompt (after 7 PM) */}
       {new Date().getHours() >= 19 && (
         <button
           onClick={() => navigate('/review')}
-          className="w-full mt-6 p-4 rounded-sm border border-primary/20 bg-gradient-to-r from-primary/5 to-transparent
-            hover:from-primary/10 transition-colors text-left group"
+          className="w-full mt-6 p-4 rounded-2xl ring-1 ring-inset ring-black/5 bg-gradient-to-r from-primary/5 to-transparent
+            hover:from-primary/10 hover:shadow-md transition-all duration-300 text-left group"
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">🌙</span>
@@ -564,6 +611,18 @@ export default function Dashboard() {
             </div>
           </div>
         </button>
+      )}
+
+      {showUrgeSurf.show && (
+        <UrgeSurfModal
+          triggerSource={showUrgeSurf.source}
+          onClose={() => setShowUrgeSurf({ show: false, source: 'dashboard_button' })}
+          onAteAnyway={() => {
+            setShowUrgeSurf({ show: false, source: 'dashboard_button' });
+            // Pre-fill a food log explicitly as impulsive
+            setActivePanel('food');
+          }}
+        />
       )}
     </div>
   );

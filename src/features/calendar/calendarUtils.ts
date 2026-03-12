@@ -11,8 +11,8 @@ import {
 import type { CalendarEvent } from '../../types';
 
 // ─── Constants ────────────────────────────────────────────────────────
-export const START_HOUR = 6;   // 6 AM
-export const END_HOUR = 22;    // 10 PM
+export const START_HOUR = 0;   // 12 AM
+export const END_HOUR = 24;    // 12 AM (Next Day)
 export const SLOT_MINUTES = 15; // 15-minute increments
 export const SLOT_HEIGHT = 16;  // px per 15-min slot
 export const HOUR_HEIGHT = SLOT_HEIGHT * (60 / SLOT_MINUTES); // 64px per hour

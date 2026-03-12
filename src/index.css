@@ -9,33 +9,35 @@
   /* Irish Green */
   --color-primary-light: #00824F;
   /* Darker Irish Green for hover */
-  --color-text-main: #000000;
-  /* High contrast black */
-  --color-text-muted: #4B5563;
+  --color-text-main: #111827;
+  /* Refined dark gray */
+  --color-text-muted: #6B7280;
   /* Medium gray */
   --color-warning: #F59E0B;
   --color-danger: #EF4444;
-  --color-border: #D1D5DB;
-  /* Slightly darker border for crispness */
+  --color-border: #E5E7EB;
+  /* Softer border */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
   :root {
-    --background: #FFFFFF;
-    /* Pure white background */
+    --background: #F9FAFB;
+    /* Off-white premium background */
     --foreground: var(--color-text-main);
   }
 
   body {
     background-color: var(--background);
     color: var(--foreground);
+    font-family: var(--font-sans);
     @apply antialiased min-h-screen selection:bg-primary/30;
   }
 }
 
 @layer components {
   .card-styled {
-    @apply bg-card border border-border rounded-sm;
+    @apply bg-card rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)];
   }
 }
 
