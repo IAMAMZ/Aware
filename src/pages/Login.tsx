@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
+import type { User } from '../types';
 import { Activity } from 'lucide-react';
 
 export default function Login() {
@@ -11,6 +13,7 @@ export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   
   const navigate = useNavigate();
+  const { setUser } = useAppStore();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,28 +21,31 @@ export default function Login() {
     setError(null);
 
     try {
+      let authUserId: string;
+      let authUserEmail: string;
+
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
+        const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        // Auto sign in or show message depending on Supabase email confirmation settings
-        // Assuming auto sign in for simplicity in MVP
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
-        navigate('/');
+        authUserId = signInData.user!.id;
+        authUserEmail = signInData.user!.email!;
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate('/');
+        authUserId = signInData.user!.id;
+        authUserEmail = signInData.user!.email!;
       }
+
+      const { data: userData } = await supabase.from('users').select('*').eq('id', authUserId).single();
+      setUser(userData as User ?? {
+        id: authUserId,
+        email: authUserEmail,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        medication_tracking: false,
+      });
+      navigate('/');
     } catch (err: any) {
       if (err.message === 'Invalid login credentials') {
         setError('The email or password you entered is incorrect.');
