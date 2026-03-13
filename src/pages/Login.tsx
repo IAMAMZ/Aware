@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Activity } from 'lucide-react';
 
@@ -41,7 +41,11 @@ export default function Login() {
         navigate('/');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred during authentication');
+      if (err.message === 'Invalid login credentials') {
+        setError('The email or password you entered is incorrect.');
+      } else {
+        setError(err.message || 'An error occurred during authentication');
+      }
     } finally {
       setLoading(false);
     }
@@ -96,11 +100,18 @@ export default function Login() {
                   className="appearance-none block w-full px-3 py-2 border border-border rounded-sm placeholder-text-muted focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-background text-text-main transition-colors duration-200"
                 />
               </div>
+              <div className="mt-2 flex justify-end">
+                <Link to="/reset-password" className="text-sm font-medium text-primary hover:text-primary-light transition-colors duration-200">
+                  Forgot your password?
+                </Link>
+              </div>
             </div>
 
             {error && (
-              <div className="text-danger text-sm text-center">
-                {error}
+              <div className="rounded-md bg-danger/10 p-4 border border-danger/20">
+                <div className="text-sm text-danger text-center">
+                  {error}
+                </div>
               </div>
             )}
 

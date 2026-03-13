@@ -6,6 +6,8 @@ import { useAppStore } from './store/useAppStore';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
+import UpdatePassword from './pages/UpdatePassword';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -47,6 +49,8 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/update-password" element={<UpdatePassword />} />
         
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
