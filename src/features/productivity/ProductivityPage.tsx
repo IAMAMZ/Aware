@@ -5,7 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import type { FocusSession, EnergyTag, CompletionStatus, EnvironmentType } from '../../types';
-import { Play, Square, Timer, Activity } from 'lucide-react';
+import { Play, Square, Timer, Activity, Pause } from 'lucide-react';
 import UrgeSurfModal from '../nutrition/UrgeSurfModal';
 
 const ENERGY_TAGS: EnergyTag[] = ['deep', 'medium', 'low', 'autopilot'];
@@ -44,11 +44,25 @@ function useTimer(running: boolean) {
   return { elapsed, fmt, reset };
 }
 
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function sendNotification(title: string, body: string) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' });
+  }
+}
+
 export default function ProductivityPage() {
   const { user } = useAppStore();
   const queryClient = useQueryClient();
 
   const [running, setRunning] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [pauseCount, setPauseCount] = useState(0);
   const [sessionStart, setSessionStart] = useState<string | null>(null);
   const [taskLabel, setTaskLabel] = useState('');
   const [energyTag, setEnergyTag] = useState<EnergyTag>('deep');
@@ -57,17 +71,20 @@ export default function ProductivityPage() {
   const [notes, setNotes] = useState('');
   const [interruptions, setInterruptions] = useState(0);
   const [showUrgeSurf, setShowUrgeSurf] = useState<{ show: boolean, source: 'productivity_button' | 'focus_nudge' }>({ show: false, source: 'productivity_button' });
-  const [hasPromptedUrgeSurfThisSession, setHasPromptedUrgeSurfThisSession] = useState(false);
+  const [showPauseUrgeSurf, setShowPauseUrgeSurf] = useState(false);
 
-  const { elapsed, fmt, reset } = useTimer(running);
+  const isActive = running && !paused;
+  const { elapsed, fmt, reset } = useTimer(isActive);
 
-  // Trigger Urge Surf nudge after 25 minutes of focus
+  // Update document title with timer when running
   useEffect(() => {
-    if (running && elapsed >= 25 * 60 && !hasPromptedUrgeSurfThisSession) {
-      setShowUrgeSurf({ show: true, source: 'focus_nudge' });
-      setHasPromptedUrgeSurfThisSession(true);
+    if (running) {
+      document.title = `${paused ? '⏸ ' : '⏱ '}${fmt} — Aware`;
+    } else {
+      document.title = 'Aware';
     }
-  }, [running, elapsed, hasPromptedUrgeSurfThisSession]);
+    return () => { document.title = 'Aware'; };
+  }, [running, paused, fmt]);
 
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['focus-sessions', user?.id],
@@ -97,7 +114,7 @@ export default function ProductivityPage() {
         music_type: environment,
         energy_tag: energyTag,
         completion_status: completionStatus,
-        interruption_count: interruptions,
+        interruption_count: interruptions + pauseCount,
         notes: notes || null,
       });
       if (error) throw error;
@@ -106,6 +123,8 @@ export default function ProductivityPage() {
       queryClient.invalidateQueries({ queryKey: ['focus-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setRunning(false);
+      setPaused(false);
+      setPauseCount(0);
       reset();
       setSessionStart(null);
       setTaskLabel('');
@@ -115,13 +134,29 @@ export default function ProductivityPage() {
   });
 
   const handleStart = () => {
+    requestNotificationPermission();
     setSessionStart(new Date().toISOString());
     setRunning(true);
-    setHasPromptedUrgeSurfThisSession(false);
+    setPaused(false);
+    setPauseCount(0);
+  };
+
+  const handlePause = () => {
+    setPaused(true);
+    setPauseCount((c) => c + 1);
+    setShowPauseUrgeSurf(true);
+  };
+
+  const handleResume = () => {
+    setPaused(false);
+    setShowPauseUrgeSurf(false);
   };
 
   const handleStop = () => {
+    const mins = Math.round(elapsed / 60);
+    sendNotification('Focus session complete!', `You focused for ${mins} minutes. Great work!`);
     setRunning(false);
+    setPaused(false);
     saveMutation.mutate();
   };
 
@@ -137,11 +172,14 @@ export default function ProductivityPage() {
         <CardContent className="space-y-6">
           {/* Big Timer */}
           <div className="text-center py-6">
-            <div className={`text-7xl font-mono font-bold tabular-nums transition-colors ${running ? 'text-primary' : 'text-text-muted'}`}>
+            <div className={`text-7xl font-mono font-bold tabular-nums transition-colors ${isActive ? 'text-primary' : paused ? 'text-warning' : 'text-text-muted'}`}>
               {fmt}
             </div>
-            {running && (
+            {isActive && (
               <p className="text-sm text-text-muted mt-2 animate-pulse">Session in progress...</p>
+            )}
+            {paused && (
+              <p className="text-sm text-warning mt-2">Paused — {pauseCount} pause{pauseCount !== 1 ? 's' : ''} this session</p>
             )}
           </div>
 
@@ -190,6 +228,30 @@ export default function ProductivityPage() {
           {/* Running session extras */}
           {running && (
             <div className="space-y-4">
+              {/* Pause urge surf prompt */}
+              {showPauseUrgeSurf && (
+                <div className="p-3 rounded-sm border border-warning/30 bg-warning/5 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text-main">Feeling an urge? 🧘</p>
+                    <p className="text-xs text-text-muted">Take 2 min to urge surf before acting on it</p>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => { setShowPauseUrgeSurf(false); setShowUrgeSurf({ show: true, source: 'focus_nudge' }); }}
+                      className="px-3 py-1.5 text-xs rounded-sm border border-primary text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      Urge Surf
+                    </button>
+                    <button
+                      onClick={() => setShowPauseUrgeSurf(false)}
+                      className="px-3 py-1.5 text-xs rounded-sm border border-border text-text-muted hover:bg-forest transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={() => setShowUrgeSurf({ show: true, source: 'productivity_button' })}
                 className="w-full p-3 rounded-sm border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-left flex items-center justify-between group"
@@ -236,10 +298,24 @@ export default function ProductivityPage() {
               <Button variant="primary" onClick={handleStart} className="flex-1 gap-2">
                 <Play className="w-4 h-4 fill-white" /> Start Session
               </Button>
+            ) : paused ? (
+              <>
+                <Button variant="primary" onClick={handleResume} className="flex-1 gap-2">
+                  <Play className="w-4 h-4 fill-white" /> Resume
+                </Button>
+                <Button variant="secondary" onClick={handleStop} disabled={saveMutation.isPending} className="gap-2 border-danger text-danger hover:bg-danger/10">
+                  <Square className="w-4 h-4 fill-current" /> {saveMutation.isPending ? 'Saving...' : 'Stop'}
+                </Button>
+              </>
             ) : (
-              <Button variant="secondary" onClick={handleStop} disabled={saveMutation.isPending} className="flex-1 gap-2 border-danger text-danger hover:bg-danger/10">
-                <Square className="w-4 h-4 fill-current" /> {saveMutation.isPending ? 'Saving...' : 'Stop & Save'}
-              </Button>
+              <>
+                <Button variant="secondary" onClick={handlePause} className="gap-2 border-warning text-warning hover:bg-warning/10">
+                  <Pause className="w-4 h-4" /> Pause
+                </Button>
+                <Button variant="secondary" onClick={handleStop} disabled={saveMutation.isPending} className="flex-1 gap-2 border-danger text-danger hover:bg-danger/10">
+                  <Square className="w-4 h-4 fill-current" /> {saveMutation.isPending ? 'Saving...' : 'Stop & Save'}
+                </Button>
+              </>
             )}
           </div>
         </CardContent>

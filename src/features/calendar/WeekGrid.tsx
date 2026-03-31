@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import type { CalendarEvent } from '../../types';
 import {
   TIME_SLOTS,
@@ -19,11 +19,58 @@ interface WeekGridProps {
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
   onSlotClick: (day: Date, hour: number, minute: number) => void;
+  onEventDrop?: (event: CalendarEvent, newStart: Date, newEnd: Date) => void;
 }
 
-export default function WeekGrid({ days, events, onEventClick, onSlotClick }: WeekGridProps) {
+export default function WeekGrid({ days, events, onEventClick, onSlotClick, onEventDrop }: WeekGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const nowRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ event: CalendarEvent; offsetY: number } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const handleDragStart = useCallback((event: CalendarEvent, offsetY: number) => {
+    dragRef.current = { event, offsetY };
+    setDraggingId(event.id);
+  }, []);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    if (!dragRef.current || !onEventDrop) return;
+
+    const { event, offsetY } = dragRef.current;
+    const colEl = e.currentTarget as HTMLElement;
+    const rect = colEl.getBoundingClientRect();
+    // rect.top is already viewport-relative (accounts for container scroll),
+    // so we must NOT add scrollTop again — that would double-count it.
+    const relativeY = e.clientY - rect.top - offsetY;
+
+    // Snap to nearest 15-min slot
+    const slotIndex = Math.max(0, Math.round(relativeY / SLOT_HEIGHT));
+    const totalMinutes = START_HOUR * 60 + slotIndex * SLOT_MINUTES;
+    const newHour = Math.floor(totalMinutes / 60);
+    const newMinute = totalMinutes % 60;
+
+    const duration =
+      new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
+
+    const newStart = new Date(day);
+    newStart.setHours(newHour, newMinute, 0, 0);
+    const newEnd = new Date(newStart.getTime() + duration);
+
+    onEventDrop(event, newStart, newEnd);
+    dragRef.current = null;
+    setDraggingId(null);
+  }, [onEventDrop]);
+
+  const handleDragEnd = useCallback(() => {
+    dragRef.current = null;
+    setDraggingId(null);
+  }, []);
 
   // Auto-scroll to current time on mount
   useEffect(() => {
@@ -97,7 +144,9 @@ export default function WeekGrid({ days, events, onEventClick, onSlotClick }: We
               <div
                 key={day.toISOString()}
                 className={`relative border-r border-border last:border-r-0
-                  ${isToday(day) ? 'bg-primary/[0.02]' : ''}`}
+                  ${isToday(day) ? 'bg-primary/2' : ''}`}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, day)}
               >
                 {/* 15-minute slot lines */}
                 {TIME_SLOTS.map((slot, i) => {
@@ -123,7 +172,14 @@ export default function WeekGrid({ days, events, onEventClick, onSlotClick }: We
 
                 {/* Events */}
                 {dayEvents.map((event) => (
-                  <EventBlock key={event.id} event={event} onClick={onEventClick} />
+                  <EventBlock
+                    key={event.id}
+                    event={event}
+                    onClick={onEventClick}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    isDragging={draggingId === event.id}
+                  />
                 ))}
 
                 {/* Now indicator (only on today's column) */}
@@ -135,7 +191,7 @@ export default function WeekGrid({ days, events, onEventClick, onSlotClick }: We
                   >
                     <div className="flex items-center">
                       <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1 shadow-sm" />
-                      <div className="flex-1 h-[2px] bg-red-500 shadow-sm" />
+                      <div className="flex-1 h-0.5 bg-red-500 shadow-sm" />
                     </div>
                   </div>
                 )}

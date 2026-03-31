@@ -3,6 +3,64 @@ import type { CalendarEvent } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { X, Trash2, Zap, CheckCircle2, RotateCcw } from 'lucide-react';
 
+// Generate 15-minute time slots for the select
+const TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => {
+  const h = Math.floor(i / 4);
+  const m = (i % 4) * 15;
+  const suffix = h < 12 ? 'am' : 'pm';
+  const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const label = `${display}:${String(m).padStart(2, '0')} ${suffix}`;
+  const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  return { label, value };
+});
+
+interface DateTimePickerProps {
+  value: string; // datetime-local format: "YYYY-MM-DDTHH:mm"
+  onChange: (value: string) => void;
+  label: string;
+}
+
+function DateTimePicker({ value, onChange, label }: DateTimePickerProps) {
+  const datePart = value ? value.slice(0, 10) : '';
+  const timePart = value ? value.slice(11, 16) : '';
+
+  // Round time to nearest 15-min for select matching
+  const roundedTime = (() => {
+    if (!timePart) return '';
+    const [h, m] = timePart.split(':').map(Number);
+    const rounded = Math.round(m / 15) * 15;
+    if (rounded === 60) return `${String(h + 1).padStart(2, '0')}:00`;
+    return `${String(h).padStart(2, '0')}:${String(rounded).padStart(2, '0')}`;
+  })();
+
+  const handleDateChange = (d: string) => onChange(d && timePart ? `${d}T${timePart}` : d ? `${d}T${timePart || '09:00'}` : '');
+  const handleTimeChange = (t: string) => onChange(datePart && t ? `${datePart}T${t}` : '');
+
+  return (
+    <div>
+      <label className="text-xs text-text-muted mb-1 block">{label}</label>
+      <div className="flex gap-2">
+        <input
+          type="date"
+          value={datePart}
+          onChange={(e) => handleDateChange(e.target.value)}
+          className="flex-1 bg-white border border-border rounded-sm px-2 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
+        />
+        <select
+          value={roundedTime}
+          onChange={(e) => handleTimeChange(e.target.value)}
+          className="bg-white border border-border rounded-sm px-2 py-2 text-sm text-text-main focus:outline-none focus:border-primary"
+        >
+          <option value="">--:--</option>
+          {TIME_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 const ENERGY_TYPES = ['deep', 'admin', 'creative', 'physical', 'social', 'rest'];
 
 const SIDETRACK_REASONS = [
@@ -141,27 +199,9 @@ export default function EventModal({
           />
 
           {/* Start / End */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-text-muted mb-1 block">Start</label>
-              <input
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full bg-white border border-border rounded-sm px-3 py-2 text-sm text-text-main
-                  focus:outline-none focus:border-primary"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-text-muted mb-1 block">End</label>
-              <input
-                type="datetime-local"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full bg-white border border-border rounded-sm px-3 py-2 text-sm text-text-main
-                  focus:outline-none focus:border-primary"
-              />
-            </div>
+          <div className="space-y-3">
+            <DateTimePicker label="Start" value={startTime} onChange={setStartTime} />
+            <DateTimePicker label="End" value={endTime} onChange={setEndTime} />
           </div>
 
           {/* Energy type */}

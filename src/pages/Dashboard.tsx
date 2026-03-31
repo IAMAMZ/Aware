@@ -80,7 +80,6 @@ export default function Dashboard() {
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [showUrgeSurf, setShowUrgeSurf] = useState<{ show: boolean, source: 'dashboard_button' | 'focus_nudge' }>({ show: false, source: 'dashboard_button' });
-  const [hasPromptedUrgeSurfThisSession, setHasPromptedUrgeSurfThisSession] = useState(false);
 
   const toggle = (panel: ActivePanel) =>
     setActivePanel((prev) => (prev === panel ? null : panel));
@@ -143,14 +142,6 @@ export default function Dashboard() {
   const [taskLabel, setTaskLabel]           = useState('');
   const { elapsed, fmt, reset }             = useTimer(focusRunning);
   
-  // Trigger Urge Surf nudge after 25 minutes of focus
-  useEffect(() => {
-    if (focusRunning && elapsed >= 25 * 60 && !hasPromptedUrgeSurfThisSession) {
-      setShowUrgeSurf({ show: true, source: 'focus_nudge' });
-      setHasPromptedUrgeSurfThisSession(true);
-    }
-  }, [focusRunning, elapsed, hasPromptedUrgeSurfThisSession]);
-
   const focusMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from('focus_sessions').insert({
@@ -177,7 +168,6 @@ export default function Dashboard() {
   const handleStartFocus = () => {
     setSessionStart(new Date().toISOString());
     setFocusRunning(true);
-    setHasPromptedUrgeSurfThisSession(false);
   };
   const handleStopFocus = () => {
     setFocusRunning(false);
@@ -264,6 +254,41 @@ export default function Dashboard() {
   const focusTimelineData = todayStats?.focusTimeline || [];
   const distractionData   = todayStats?.distractionBreakdown || [];
 
+  // ── Medication check ──
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const { data: medLog, refetch: refetchMed } = useQuery({
+    queryKey: ['medication-log', user?.id, todayDate],
+    enabled: !!user?.id && !!user?.medication_tracking,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('medication_logs')
+        .select('*')
+        .eq('user_id', user!.id)
+        .eq('date', todayDate)
+        .maybeSingle();
+      return data;
+    },
+  });
+  const [medDose, setMedDose] = useState('');
+  const [medDismissed, setMedDismissed] = useState(false);
+  const medMutation = useMutation({
+    mutationFn: async ({ taken, dose }: { taken: boolean; dose: string }) => {
+      const { error } = await supabase.from('medication_logs').insert({
+        user_id: user!.id,
+        date: todayDate,
+        taken,
+        dose: dose || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['medication-log'] });
+      refetchMed();
+    },
+  });
+
+  const showMedCheck = user?.medication_tracking && !medLog && !medDismissed;
+
   return (
     <div className="space-y-6 pb-12">
       <div className="flex justify-between items-center">
@@ -292,6 +317,55 @@ export default function Dashboard() {
             </div>
           </div>
         </button>
+      )}
+
+      {/* ── Medication Check ── */}
+      {showMedCheck && (
+        <div className="p-4 rounded-2xl ring-1 ring-inset ring-black/5 bg-linear-to-r from-violet-50 to-transparent">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">💊</span>
+              <div>
+                <p className="text-sm font-semibold text-text-main">Did you take your medication today?</p>
+                <p className="text-xs text-text-muted">Track your ADHD medication for better insights</p>
+              </div>
+            </div>
+            <button onClick={() => setMedDismissed(true)} className="text-text-muted hover:text-text-main transition-colors shrink-0">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Dose (e.g. 20mg Ritalin)"
+              value={medDose}
+              onChange={(e) => setMedDose(e.target.value)}
+              className="flex-1 bg-white border border-border rounded-sm px-3 py-1.5 text-sm text-text-main placeholder-text-muted focus:outline-none focus:border-primary"
+            />
+            <button
+              onClick={() => medMutation.mutate({ taken: true, dose: medDose })}
+              disabled={medMutation.isPending}
+              className="px-4 py-1.5 rounded-sm bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors shrink-0"
+            >
+              Yes ✓
+            </button>
+            <button
+              onClick={() => medMutation.mutate({ taken: false, dose: '' })}
+              disabled={medMutation.isPending}
+              className="px-4 py-1.5 rounded-sm border border-border text-text-muted text-sm hover:bg-forest transition-colors shrink-0"
+            >
+              No
+            </button>
+          </div>
+        </div>
+      )}
+      {user?.medication_tracking && medLog && (
+        <div className="px-4 py-2 rounded-2xl ring-1 ring-inset ring-black/5 bg-violet-50/50 flex items-center gap-2">
+          <span>💊</span>
+          <span className="text-sm text-text-muted">
+            Medication today: <span className="font-medium text-text-main">{medLog.taken ? `Taken${medLog.dose ? ` — ${medLog.dose}` : ''}` : 'Skipped'}</span>
+          </span>
+        </div>
       )}
 
       {/* ── Right Now — ADHD Schedule Accountability ── */}

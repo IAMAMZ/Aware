@@ -1,18 +1,19 @@
 import { NavLink } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
-import { 
-  LayoutDashboard, 
-  Utensils, 
-  Moon, 
+import {
+  LayoutDashboard,
+  Utensils,
+  Moon,
   Smile,
-  Smartphone, 
-  Timer, 
-  BookText, 
-  CheckSquare, 
+  Smartphone,
+  Timer,
+  BookText,
+  CheckSquare,
   Calendar,
   Sunrise,
   Sunset,
-  BrainCircuit, 
+  BrainCircuit,
+  BarChart2,
   Settings,
   LogOut
 } from 'lucide-react';
@@ -30,6 +31,7 @@ const navItems = [
   { path: '/calendar', label: 'Calendar', icon: Calendar },
   { path: '/ahead', label: 'Day Ahead', icon: Sunrise },
   { path: '/review', label: 'Day Review', icon: Sunset },
+  { path: '/analytics', label: 'Health Patterns', icon: BarChart2 },
   { path: '/insights', label: 'AI Counsellor', icon: BrainCircuit },
 ];
 
@@ -59,7 +61,7 @@ export default function Sidebar() {
               )
             }
           >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
+            <item.icon className="w-5 h-5 shrink-0" />
             {item.label}
           </NavLink>
         ))}
@@ -77,7 +79,7 @@ export default function Sidebar() {
             )
           }
         >
-          <Settings className="w-5 h-5 flex-shrink-0" />
+          <Settings className="w-5 h-5 shrink-0" />
           Settings
         </NavLink>
         
@@ -85,7 +87,7 @@ export default function Sidebar() {
           onClick={() => signOut()}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-sm transition-colors duration-200 text-sm font-medium text-text-muted hover:bg-danger/10 hover:text-danger mt-2"
         >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
+          <LogOut className="w-5 h-5 shrink-0" />
           Sign Out
         </button>
 

@@ -188,6 +188,21 @@ export default function CalendarPage() {
     [deleteMutation]
   );
 
+  const handleEventDrop = useCallback(
+    (event: CalendarEvent, newStart: Date, newEnd: Date) => {
+      updateMutation.mutate({
+        id: event.id,
+        title: event.title,
+        start_time: newStart.toISOString(),
+        end_time: newEnd.toISOString(),
+        energy_type: event.energy_type || 'admin',
+        is_focus_block: event.is_focus_block,
+        notes: event.notes,
+      });
+    },
+    [updateMutation]
+  );
+
   // ── Navigation ──
   const goToday = () => setCurrentDate(new Date());
   const goPrev = () => {
@@ -284,6 +299,7 @@ export default function CalendarPage() {
           events={events}
           onEventClick={handleEventClick}
           onSlotClick={handleSlotClick}
+          onEventDrop={handleEventDrop}
         />
       )}
 
