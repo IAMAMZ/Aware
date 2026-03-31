@@ -25,7 +25,7 @@ export default function WeeklySummary() {
   const prevWeekEnd = subDays(today, 7).toISOString();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['weekly-summary', user?.id, format(today, 'yyyy-[W]ww')],
+    queryKey: ['weekly-summary', user?.id, format(today, "yyyy-'W'ww")],
     enabled: !!user?.id,
     staleTime: 30 * 60 * 1000,
     queryFn: async () => {
