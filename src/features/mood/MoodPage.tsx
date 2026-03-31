@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Skeleton } from '../../components/ui/Skeleton';
 import type { MoodLog } from '../../types';
 import { Zap } from 'lucide-react';
 
@@ -213,9 +214,23 @@ export default function MoodPage() {
         <CardHeader><CardTitle>Recent Logs</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-text-muted text-sm">Loading...</p>
+            <div className="space-y-3">
+              {[1,2,3].map(i => (
+                <div key={i} className="flex items-center gap-3 py-3 border-b border-border">
+                  <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-2.5 w-32" />
+                  </div>
+                  <Skeleton className="h-3 w-12" />
+                </div>
+              ))}
+            </div>
           ) : !logs?.length ? (
-            <p className="text-text-muted text-sm">No mood logs yet.</p>
+            <div className="text-center py-10 text-text-muted">
+              <p className="text-sm">No mood logs yet.</p>
+              <p className="text-xs mt-1">Use the quick log above to track how you're feeling.</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {logs.map((log) => (

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Skeleton } from '../../components/ui/Skeleton';
 import type { SleepLog } from '../../types';
 
 const SLEEP_TYPES = ['deep', 'light', 'restless', 'nap'];
@@ -170,9 +171,22 @@ export default function SleepPage() {
         <CardHeader><CardTitle>Recent Sleep</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-text-muted text-sm">Loading...</p>
+            <div className="space-y-3">
+              {[1,2,3].map(i => (
+                <div key={i} className="flex items-center justify-between py-3 border-b border-border">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-2.5 w-16" />
+                  </div>
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              ))}
+            </div>
           ) : !logs?.length ? (
-            <p className="text-text-muted text-sm">No sleep logs yet.</p>
+            <div className="text-center py-10 text-text-muted">
+              <p className="text-sm">No sleep logs yet.</p>
+              <p className="text-xs mt-1">Log last night's sleep using the form above.</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {logs.map((log) => (

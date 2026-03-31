@@ -25,6 +25,8 @@ import RightNowWidget from '../features/calendar/RightNowWidget';
 import UrgeSurfModal from '../features/nutrition/UrgeSurfModal';
 import StreakWidget from '../features/streaks/StreakWidget';
 import GoalsWidget from '../features/goals/GoalsWidget';
+import Onboarding from '../components/Onboarding';
+import WeeklySummary from '../components/WeeklySummary';
 
 // ─── Types ────────────────────────────────────────────────────────────
 type ActivePanel = 'mood' | 'food' | 'focus' | null;
@@ -301,6 +303,12 @@ export default function Dashboard() {
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </div>
       </div>
+
+      {/* ── Onboarding checklist (new users only) ── */}
+      <Onboarding />
+
+      {/* ── Weekly summary card ── */}
+      <WeeklySummary />
 
       {/* ── Morning Day Ahead Prompt (before noon) ── */}
       {new Date().getHours() < 12 && (

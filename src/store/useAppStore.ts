@@ -7,6 +7,7 @@ interface AppState {
     isLoading: boolean;
     setUser: (user: User | null) => void;
     initializeUser: () => Promise<void>;
+    updateUser: (updates: Partial<Pick<User, 'medication_tracking' | 'timezone'>>) => Promise<void>;
     signOut: () => Promise<void>;
 }
 
@@ -49,6 +50,17 @@ export const useAppStore = create<AppState>((set) => ({
         } finally {
             set({ isLoading: false });
         }
+    },
+    updateUser: async (updates) => {
+        const user = (useAppStore.getState()).user;
+        if (!user) return;
+        const { data, error } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', user.id)
+            .select()
+            .single();
+        if (!error && data) set({ user: data as User });
     },
     signOut: async () => {
         await supabase.auth.signOut();

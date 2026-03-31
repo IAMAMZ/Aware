@@ -5,8 +5,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import type { FocusSession, EnergyTag, CompletionStatus, EnvironmentType } from '../../types';
-import { Play, Square, Timer, Activity, Pause, RotateCcw } from 'lucide-react';
+import { Play, Square, Timer, Activity, Pause, RotateCcw, Users } from 'lucide-react';
 import UrgeSurfModal from '../nutrition/UrgeSurfModal';
+import { useBodyDoubling } from '../../hooks/useBodyDoubling';
 
 const ENERGY_TAGS: EnergyTag[] = ['deep', 'medium', 'low', 'autopilot'];
 const ENERGY_COLORS: Record<EnergyTag, string> = {
@@ -270,6 +271,7 @@ export default function ProductivityPage() {
   };
 
   const totalToday = sessions?.reduce((a, s) => a + (s.duration_minutes || 0), 0) || 0;
+  const { focuserCount } = useBodyDoubling(isActive);
   const pomoRingColor = pomoPhase === 'focus' ? '#169B62' : '#818cf8';
 
   return (
@@ -528,12 +530,27 @@ export default function ProductivityPage() {
       </Card>
 
       {/* ── Today summary ── */}
-      <div className="flex items-center gap-3 px-1">
-        <Timer className="w-5 h-5 text-primary" />
-        <span className="text-text-muted text-sm">Total focus today:</span>
-        <span className="text-text-main font-bold">{totalToday} min</span>
-        {mode === 'pomo' && pomoCount > 0 && (
-          <span className="text-text-muted text-sm ml-2">· {pomoCount} 🍅 this session</span>
+      <div className="flex items-center gap-4 px-1 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Timer className="w-5 h-5 text-primary" />
+          <span className="text-text-muted text-sm">Total focus today:</span>
+          <span className="text-text-main font-bold">{totalToday} min</span>
+          {mode === 'pomo' && pomoCount > 0 && (
+            <span className="text-text-muted text-sm">· {pomoCount} 🍅</span>
+          )}
+        </div>
+
+        {/* Body doubling indicator */}
+        {isActive && (
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+            <Users className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-medium text-primary">
+              {focuserCount > 0
+                ? `${focuserCount} other${focuserCount !== 1 ? 's' : ''} focusing with you`
+                : 'You\'re the only one focusing right now'
+              }
+            </span>
+          </div>
         )}
       </div>
 
