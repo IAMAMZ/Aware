@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import RightNowWidget from '../features/calendar/RightNowWidget';
 import UrgeSurfModal from '../features/nutrition/UrgeSurfModal';
+import StreakWidget from '../features/streaks/StreakWidget';
+import GoalsWidget from '../features/goals/GoalsWidget';
 
 // ─── Types ────────────────────────────────────────────────────────────
 type ActivePanel = 'mood' | 'food' | 'focus' | null;
@@ -367,6 +369,12 @@ export default function Dashboard() {
           </span>
         </div>
       )}
+
+      {/* ── Streak + Goals ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <StreakWidget />
+        <GoalsWidget />
+      </div>
 
       {/* ── Right Now — ADHD Schedule Accountability ── */}
       <RightNowWidget />
