@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { subDays, format, eachDayOfInterval } from 'date-fns';
+import { subDays, format } from 'date-fns';
 import { TrendingUp, TrendingDown, Minus, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';

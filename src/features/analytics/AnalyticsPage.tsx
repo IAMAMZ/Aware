@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Cell, AreaChart, Area,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Cell, AreaChart, Area,
 } from 'recharts';
 import { subDays, format, eachDayOfInterval, startOfWeek } from 'date-fns';
 import {

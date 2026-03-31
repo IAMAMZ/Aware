@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Skeleton, SkeletonCard } from '../../components/ui/Skeleton';
+import { SkeletonCard } from '../../components/ui/Skeleton';
 import type { Task, Priority, TaskSize, TaskEnergyType } from '../../types';
 import { CheckSquare, Square, Trash2, Zap, Info } from 'lucide-react';
 
@@ -295,7 +295,7 @@ export default function TasksPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             {matched && !task.completed && (
-                              <Zap className="w-3.5 h-3.5 text-primary shrink-0" title="Matches your current energy" />
+                              <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
                             )}
                             <p className={`text-sm font-medium ${task.completed ? 'line-through text-text-muted' : 'text-text-main'}`}>
                               {task.title}
