@@ -119,10 +119,25 @@ export default function TasksPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   });
 
+  const [showDone, setShowDone] = useState(false);
+
+  const incompleteTasks = tasks?.filter((t) => !t.completed) || [];
+  const completedTasks = tasks?.filter((t) => t.completed) || [];
+
   const grouped = PRIORITIES.reduce((acc, p) => {
-    acc[p.value] = tasks?.filter((t) => t.priority === p.value) || [];
+    acc[p.value] = incompleteTasks.filter((t) => t.priority === p.value);
     return acc;
   }, {} as Record<Priority, Task[]>);
+
+  const clearCompletedMutation = useMutation({
+    mutationFn: async () => {
+      const ids = completedTasks.map((t) => t.id);
+      if (!ids.length) return;
+      const { error } = await supabase.from('tasks').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  });
 
   // Energy match logic
   const energyMatch = latestMood ? getEnergyMatch(latestMood.mood_score) : null;
@@ -321,6 +336,58 @@ export default function TasksPage() {
             </Card>
           ) : null
         )
+      )}
+
+      {/* ── Done section ── */}
+      {!isLoading && completedTasks.length > 0 && (
+        <div className="border border-border rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowDone(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-forest transition-colors text-left"
+          >
+            <span className="text-sm font-medium text-text-muted">
+              ✓ Done ({completedTasks.length})
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={(e) => { e.stopPropagation(); clearCompletedMutation.mutate(); }}
+                className="text-xs text-text-muted hover:text-danger transition-colors"
+                disabled={clearCompletedMutation.isPending}
+              >
+                {clearCompletedMutation.isPending ? 'Clearing...' : 'Clear all'}
+              </button>
+              <span className="text-text-muted text-xs">{showDone ? '▲' : '▼'}</span>
+            </div>
+          </button>
+          {showDone && (
+            <div className="divide-y divide-border/50">
+              {completedTasks.map((task) => (
+                <div key={task.id} className="flex items-center gap-3 py-2.5 px-4 opacity-50">
+                  <button
+                    onClick={() => toggleMutation.mutate({ id: task.id, completed: false })}
+                    className="shrink-0 text-primary"
+                    title="Mark incomplete"
+                  >
+                    <CheckSquare className="w-5 h-5" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm line-through text-text-muted">{task.title}</p>
+                    <p className="text-xs text-text-muted/60 mt-0.5">
+                      <span className={ENERGY_COLORS[task.energy_type]}>●</span>{' '}
+                      {task.energy_type} · {task.size}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deleteMutation.mutate(task.id)}
+                    className="text-text-muted hover:text-danger transition-colors shrink-0 p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {!isLoading && !tasks?.length && (
