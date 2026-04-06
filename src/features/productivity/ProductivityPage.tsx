@@ -57,29 +57,50 @@ function useTimer(running: boolean) {
 function usePomoTimer(running: boolean, totalSeconds: number, onComplete: () => void) {
   const [remaining, setRemaining] = useState(totalSeconds);
   const endRef = useRef<number | null>(null);
+  // Keep onComplete ref fresh so the interval never has a stale closure
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; });
 
-  // Reset when totalSeconds changes (preset switch)
-  useEffect(() => { setRemaining(totalSeconds); endRef.current = null; }, [totalSeconds]);
-
+  // Restart the countdown whenever running flips on OR totalSeconds changes (phase switch)
   useEffect(() => {
-    if (running) {
-      endRef.current = Date.now() + remaining * 1000;
-      const id = setInterval(() => {
-        const left = Math.max(0, Math.round((endRef.current! - Date.now()) / 1000));
-        setRemaining(left);
-        if (left === 0) {
-          clearInterval(id);
-          onComplete();
-        }
-      }, 500);
-      return () => clearInterval(id);
-    }
-  }, [running]);
+    if (!running) { endRef.current = null; return; }
+    endRef.current = Date.now() + totalSeconds * 1000;
+    setRemaining(totalSeconds);
+    const id = setInterval(() => {
+      const left = Math.max(0, Math.round((endRef.current! - Date.now()) / 1000));
+      setRemaining(left);
+      if (left === 0) {
+        clearInterval(id);
+        onCompleteRef.current();
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [running, totalSeconds]);
 
   const reset = (secs: number) => { setRemaining(secs); endRef.current = null; };
   const fmt = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
-  const pct = 1 - remaining / totalSeconds;
+  const pct = totalSeconds > 0 ? 1 - remaining / totalSeconds : 0;
   return { remaining, fmt, pct, reset };
+}
+
+// ── Completion sound (Web Audio API) ──────────────────────────────────
+function playCompletionSound() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    [[880, 0], [1100, 0.18]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.35);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.35);
+    });
+  } catch { /* AudioContext unavailable */ }
 }
 
 // ── SVG ring ──────────────────────────────────────────────────────────
@@ -155,34 +176,66 @@ export default function ProductivityPage() {
     ? pomoPreset.focus * 60
     : pomoPreset.break * 60;
 
-  const handlePomoComplete = useCallback(() => {
-    if (pomoPhase === 'focus') {
-      setPomoCount(c => c + 1);
-      sendNotification('Pomodoro complete! 🍅', `Take a ${pomoPreset.break}-min break. Well done!`);
-      setPomoPhase('break');
-      setAutoBreak(true);
-    } else {
-      sendNotification('Break over!', `Ready for the next ${pomoPreset.focus}-min focus block?`);
-      setPomoPhase('focus');
-      setAutoBreak(false);
-      setRunning(false); // stop after break — let user start next intentionally
-    }
-  }, [pomoPhase, pomoPreset]);
-
-  // Track total elapsed for pomo sessions
+  // Track total focus-only elapsed for pomo sessions (break time excluded)
   const pomoElapsedRef = useRef(0);
   const [pomoClock, setPomoClock] = useState(0);
   const pomoClockRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Only count time during focus phase, not break
   useEffect(() => {
-    if (isActive && mode === 'pomo') {
+    if (isActive && mode === 'pomo' && pomoPhase === 'focus') {
       pomoClockRef.current = setInterval(() => {
         pomoElapsedRef.current += 1;
         setPomoClock(c => c + 1);
       }, 1000);
       return () => { if (pomoClockRef.current) clearInterval(pomoClockRef.current); };
     }
-  }, [isActive, mode]);
+  }, [isActive, mode, pomoPhase]);
+
+  // Ref so handlePomoComplete always reads latest session metadata without extra deps
+  const sessionDataRef = useRef({ sessionStart, taskLabel, environment, energyTag, pauseCount });
+  useEffect(() => { sessionDataRef.current = { sessionStart, taskLabel, environment, energyTag, pauseCount }; });
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; });
+
+  const handlePomoComplete = useCallback(() => {
+    if (pomoPhase === 'focus') {
+      setPomoCount(c => c + 1);
+      playCompletionSound();
+      sendNotification('Pomodoro complete! 🍅', `Take a ${pomoPreset.break}-min break. Well done!`);
+      // Auto-save this focus block to focus hours
+      const { sessionStart: start, taskLabel: label, environment: env, energyTag: energy, pauseCount: pauses } = sessionDataRef.current;
+      if (start && userRef.current?.id) {
+        supabase.from('focus_sessions').insert({
+          user_id: userRef.current.id,
+          started_at: start,
+          ended_at: new Date().toISOString(),
+          duration_minutes: pomoPreset.focus,
+          task_label: label || null,
+          music_type: env,
+          energy_tag: energy,
+          completion_status: 'completed',
+          interruption_count: pauses,
+          notes: null,
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ['focus-sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['streak'] });
+        });
+      }
+      // Reset focus elapsed so next block starts fresh
+      pomoElapsedRef.current = 0;
+      setPomoClock(0);
+      setPomoPhase('break');
+      setAutoBreak(true);
+    } else {
+      playCompletionSound();
+      sendNotification('Break over!', `Ready for the next ${pomoPreset.focus}-min focus block?`);
+      setPomoPhase('focus');
+      setAutoBreak(false);
+      setRunning(false); // stop after break — let user start next intentionally
+    }
+  }, [pomoPhase, pomoPreset, queryClient]);
 
   const { fmt: pomoFmt, pct: pomoPct, reset: pomoReset } = usePomoTimer(
     isActive && mode === 'pomo',
@@ -265,6 +318,15 @@ export default function ProductivityPage() {
 
   const handleStop = () => {
     const mins = Math.round(actualElapsed / 60);
+    if (mins < 1) {
+      // Nothing new to save (pomo block was already auto-saved, or session too short)
+      setRunning(false); setPaused(false); setPauseCount(0);
+      freeReset(); pomoElapsedRef.current = 0; setPomoClock(0);
+      setSessionStart(null); setTaskLabel(''); setInterruptions(0); setNotes('');
+      setPomoPhase('focus'); setPomoCount(0); setAutoBreak(false);
+      queryClient.invalidateQueries({ queryKey: ['focus-sessions'] });
+      return;
+    }
     sendNotification('Focus session complete!', `You focused for ${mins} minutes. Great work!`);
     setRunning(false); setPaused(false);
     saveMutation.mutate();

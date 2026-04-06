@@ -36,8 +36,9 @@ export default function CalendarPage() {
     ? getWeekDays(currentDate)
     : [currentDate];
 
-  // Date range for query
-  const rangeStart = visibleDays[0];
+  // Date range for query — always start from midnight so day-view doesn't miss earlier events
+  const rangeStart = new Date(visibleDays[0]);
+  rangeStart.setHours(0, 0, 0, 0);
   const rangeEnd = new Date(visibleDays[visibleDays.length - 1]);
   rangeEnd.setHours(23, 59, 59, 999);
 

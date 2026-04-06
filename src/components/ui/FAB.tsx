@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, X, Smile, Utensils, Timer, BookText } from 'lucide-react';
+import { Plus, X, Smile, Utensils, Timer, BookText, Moon } from 'lucide-react';
 
 const ACTIONS = [
   { icon: Smile,    label: 'Mood',    path: '/mood',         color: 'bg-warning text-white' },
   { icon: Utensils, label: 'Food',    path: '/nutrition',    color: 'bg-primary text-white' },
   { icon: Timer,    label: 'Focus',   path: '/productivity', color: 'bg-primary-light text-white' },
   { icon: BookText, label: 'Journal', path: '/journal',      color: 'bg-danger text-white' },
+  { icon: Moon,     label: 'Sleep',   path: '/sleep',        color: 'bg-indigo-600 text-white' },
 ];
 
 export default function FAB() {
