@@ -11,6 +11,46 @@ const SLEEP_TYPES = ['deep', 'light', 'restless', 'nap'];
 const PRE_SLEEP_CONTEXTS = ['screen_time', 'alcohol', 'late_meal', 'exercise', 'meditation', 'reading', 'anxiety', 'caffeine'];
 const QUALITY_LABELS = ['', '😫 Terrible', '😕 Poor', '😐 OK', '🙂 Good', '😄 Great'];
 
+// Sleep hygiene scoring: positive habits add points, negative habits subtract
+const CONTEXT_SCORES: Record<string, number> = {
+  screen_time: -15,
+  alcohol: -20,
+  late_meal: -10,
+  exercise: +15,
+  meditation: +20,
+  reading: +15,
+  anxiety: -15,
+  caffeine: -20,
+};
+
+function computeSleepHygieneScore(
+  quality: number,
+  durationHrs: number,
+  preContext: string[],
+): { score: number; label: string; color: string; tips: string[] } {
+  // Base: 40 points from quality (1-5 mapped to 8-40), 30 from duration, 30 from habits
+  const qualityPts = (quality / 5) * 40;
+  const durationPts = Math.min(30, (Math.min(durationHrs, 9) / 9) * 30);
+  const habitPts = 15 + preContext.reduce((s, c) => s + (CONTEXT_SCORES[c] || 0), 0);
+  const score = Math.max(0, Math.min(100, Math.round(qualityPts + durationPts + Math.max(0, habitPts))));
+
+  const tips: string[] = [];
+  if (preContext.includes('screen_time')) tips.push('Try reducing screen time before bed');
+  if (preContext.includes('caffeine')) tips.push('Avoid caffeine 6+ hours before sleep');
+  if (preContext.includes('alcohol')) tips.push('Alcohol disrupts REM sleep quality');
+  if (preContext.includes('late_meal')) tips.push('Eating late can delay sleep onset');
+  if (!preContext.includes('meditation') && !preContext.includes('reading'))
+    tips.push('Add a wind-down ritual (reading or meditation)');
+
+  let label: string, color: string;
+  if (score >= 80) { label = 'Excellent'; color = 'text-primary'; }
+  else if (score >= 60) { label = 'Good'; color = 'text-primary/80'; }
+  else if (score >= 40) { label = 'Fair'; color = 'text-warning'; }
+  else { label = 'Poor'; color = 'text-danger'; }
+
+  return { score, label, color, tips };
+}
+
 function calcDuration(bedtime: string, wakeTime: string): number {
   if (!bedtime || !wakeTime) return 0;
   const [bh, bm] = bedtime.split(':').map(Number);
@@ -159,6 +199,30 @@ export default function SleepPage() {
             </div>
           </div>
 
+          {/* Live Sleep Hygiene Score Preview */}
+          {(() => {
+            const preview = computeSleepHygieneScore(quality, duration, preContext);
+            return (
+              <div className="p-3 rounded-lg bg-forest/50 border border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-text-muted">Sleep Hygiene Score</span>
+                  <span className={`text-lg font-bold ${preview.color}`}>{preview.score}/100 <span className="text-xs font-medium">{preview.label}</span></span>
+                </div>
+                <div className="h-2 bg-forest rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      preview.score >= 80 ? 'bg-primary' : preview.score >= 60 ? 'bg-primary/70' : preview.score >= 40 ? 'bg-warning' : 'bg-danger'
+                    }`}
+                    style={{ width: `${preview.score}%` }}
+                  />
+                </div>
+                {preview.tips.length > 0 && (
+                  <p className="text-[10px] text-text-muted mt-1.5">💡 {preview.tips[0]}</p>
+                )}
+              </div>
+            );
+          })()}
+
           <Button variant="primary" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="w-full">
             {mutation.isPending ? 'Saving...' : success ? '✓ Logged!' : 'Log Sleep'}
           </Button>
@@ -189,20 +253,51 @@ export default function SleepPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {logs.map((log) => (
-                <div key={log.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                  <div>
-                    <div className="text-sm font-medium text-text-main">
-                      <span className={`font-bold ${log.duration_hours >= 7 ? 'text-primary' : log.duration_hours >= 5 ? 'text-warning' : 'text-danger'}`}>
-                        {log.duration_hours}h
-                      </span>
-                      <span className="ml-2 text-text-muted">quality {log.quality}/5</span>
+              {logs.map((log) => {
+                const hygiene = computeSleepHygieneScore(
+                  log.quality,
+                  log.duration_hours,
+                  (log.pre_sleep_context as string[]) || [],
+                );
+                return (
+                  <div key={log.id} className="py-3 border-b border-border last:border-0">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-text-main">
+                          <span className={`font-bold ${log.duration_hours >= 7 ? 'text-primary' : log.duration_hours >= 5 ? 'text-warning' : 'text-danger'}`}>
+                            {log.duration_hours}h
+                          </span>
+                          <span className="ml-2 text-text-muted">quality {log.quality}/5</span>
+                        </div>
+                        <div className="text-xs text-text-muted mt-0.5">{log.sleep_type}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-sm font-bold ${hygiene.color}`}>{hygiene.score}/100</div>
+                        <div className={`text-[10px] font-medium ${hygiene.color}`}>{hygiene.label}</div>
+                        <div className="text-[10px] text-text-muted">{log.date}</div>
+                      </div>
                     </div>
-                    <div className="text-xs text-text-muted mt-0.5">{log.sleep_type}</div>
+                    {/* Hygiene score bar */}
+                    <div className="mt-2 h-1.5 bg-forest rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          hygiene.score >= 80 ? 'bg-primary' : hygiene.score >= 60 ? 'bg-primary/70' : hygiene.score >= 40 ? 'bg-warning' : 'bg-danger'
+                        }`}
+                        style={{ width: `${hygiene.score}%` }}
+                      />
+                    </div>
+                    {hygiene.tips.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {hygiene.tips.slice(0, 2).map((tip, i) => (
+                          <span key={i} className="text-[10px] text-text-muted bg-forest px-2 py-0.5 rounded-full">
+                            💡 {tip}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs text-text-muted">{log.date}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

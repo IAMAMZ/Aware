@@ -19,7 +19,8 @@ import {
   Utensils,
   X,
   ChevronDown,
-  Activity
+  Activity,
+  Brain,
 } from 'lucide-react';
 import RightNowWidget from '../features/calendar/RightNowWidget';
 import UrgeSurfModal from '../features/nutrition/UrgeSurfModal';
@@ -291,6 +292,93 @@ export default function Dashboard() {
     },
   });
 
+  // ── Mood Prediction query ──
+  const { data: prediction } = useQuery({
+    queryKey: ['mood-prediction', user?.id],
+    enabled: !!user?.id,
+    staleTime: 60 * 60 * 1000, // 1 hour
+    queryFn: async () => {
+      const uid = user!.id;
+      const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+      const sinceDate30 = since30.slice(0, 10);
+
+      const [moodRes, sleepRes, medRes] = await Promise.all([
+        supabase.from('mood_logs').select('mood_score,timestamp').eq('user_id', uid).gte('timestamp', since30),
+        supabase.from('sleep_logs').select('quality,duration_hours,date,bedtime').eq('user_id', uid).gte('bedtime', since30),
+        supabase.from('medication_logs').select('date,taken').eq('user_id', uid).gte('date', sinceDate30),
+      ]);
+
+      const moods = moodRes.data || [];
+      const sleeps = sleepRes.data || [];
+      const meds = medRes.data || [];
+
+      // Build day maps
+      const moodByDay: Record<string, number[]> = {};
+      moods.forEach(m => { const d = m.timestamp.slice(0, 10); (moodByDay[d] = moodByDay[d] || []).push(m.mood_score); });
+      const sleepByDay: Record<string, { q: number; h: number }> = {};
+      sleeps.forEach(s => { const d = s.date || s.bedtime?.slice(0, 10); if (d) sleepByDay[d] = { q: s.quality, h: s.duration_hours }; });
+      const medByDay: Record<string, boolean> = {};
+      meds.forEach(m => { medByDay[m.date] = m.taken; });
+
+      // Compute average mood after good sleep (q>=4) vs poor sleep (q<=2)
+      const sleepDays = Object.keys(sleepByDay).sort();
+      let goodSleepMoods: number[] = [], poorSleepMoods: number[] = [];
+      sleepDays.forEach(d => {
+        const nextDay = new Date(new Date(d).getTime() + 86400000).toISOString().slice(0, 10);
+        const dayMoods = moodByDay[nextDay];
+        if (!dayMoods?.length) return;
+        const avg = dayMoods.reduce((s, v) => s + v, 0) / dayMoods.length;
+        if (sleepByDay[d].q >= 4) goodSleepMoods.push(avg);
+        else if (sleepByDay[d].q <= 2) poorSleepMoods.push(avg);
+      });
+
+      // Get last night's sleep
+      const today = new Date().toISOString().slice(0, 10);
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const lastSleep = sleepByDay[yesterday] || sleepByDay[today];
+      const todayMed = medByDay[today];
+
+      if (!lastSleep || goodSleepMoods.length + poorSleepMoods.length < 3) return null;
+
+      const avgGoodSleepMood = goodSleepMoods.length ? goodSleepMoods.reduce((s, v) => s + v, 0) / goodSleepMoods.length : null;
+      const avgPoorSleepMood = poorSleepMoods.length ? poorSleepMoods.reduce((s, v) => s + v, 0) / poorSleepMoods.length : null;
+
+      // Predict
+      const isGoodSleep = lastSleep.q >= 4 && lastSleep.h >= 7;
+      const isPoorSleep = lastSleep.q <= 2 || lastSleep.h < 5;
+
+      let level: 'good' | 'moderate' | 'tough';
+      let message: string;
+      let tip: string;
+
+      if (isGoodSleep) {
+        level = 'good';
+        message = `Good sleep last night (${lastSleep.h}h, quality ${lastSleep.q}/5)`;
+        tip = avgGoodSleepMood !== null
+          ? `After similar nights, your mood averages ${avgGoodSleepMood.toFixed(1)}/5. Great day for deep work!`
+          : 'Your patterns suggest this is a great day for deep work!';
+      } else if (isPoorSleep) {
+        level = 'tough';
+        message = `Rough sleep last night (${lastSleep.h}h, quality ${lastSleep.q}/5)`;
+        tip = avgPoorSleepMood !== null
+          ? `After similar nights, your mood averages ${avgPoorSleepMood.toFixed(1)}/5. Stick to light admin tasks.`
+          : 'Your patterns suggest sticking to light admin tasks today.';
+      } else {
+        level = 'moderate';
+        message = `Sleep: ${lastSleep.h}h, quality ${lastSleep.q}/5`;
+        tip = 'Moderate energy expected — mix creative and admin tasks.';
+      }
+
+      if (todayMed === true) {
+        tip += ' Medication taken — focus boost expected.';
+      } else if (todayMed === false) {
+        tip += ' No medication today — plan for shorter focus blocks.';
+      }
+
+      return { level, message, tip };
+    },
+  });
+
   const showMedCheck = user?.medication_tracking && !medLog && !medDismissed;
 
   return (
@@ -309,6 +397,25 @@ export default function Dashboard() {
 
       {/* ── Weekly summary card ── */}
       <WeeklySummary />
+
+      {/* ── Mood Prediction Banner ── */}
+      {prediction && (
+        <div className={`p-4 rounded-2xl ring-1 ring-inset flex items-start gap-3 ${
+          prediction.level === 'good'
+            ? 'ring-primary/20 bg-primary/5'
+            : prediction.level === 'tough'
+            ? 'ring-danger/20 bg-danger/5'
+            : 'ring-warning/20 bg-warning/5'
+        }`}>
+          <Brain className={`w-5 h-5 shrink-0 mt-0.5 ${
+            prediction.level === 'good' ? 'text-primary' : prediction.level === 'tough' ? 'text-danger' : 'text-warning'
+          }`} />
+          <div>
+            <p className="text-sm font-semibold text-text-main">{prediction.message}</p>
+            <p className="text-xs text-text-muted mt-0.5">{prediction.tip}</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Morning Day Ahead Prompt (before noon) ── */}
       {new Date().getHours() < 12 && (

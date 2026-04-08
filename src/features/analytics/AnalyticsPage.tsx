@@ -3,11 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, AreaChart, Area,
+  ScatterChart, Scatter, ZAxis,
 } from 'recharts';
 import { subDays, format, eachDayOfInterval, startOfWeek } from 'date-fns';
 import {
   Brain, Moon, Smile, Timer, Smartphone, TrendingUp,
-  Zap, Activity, AlertTriangle, Target,
+  Zap, Activity, AlertTriangle, Target, FileText, Copy, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
@@ -69,19 +70,55 @@ function StatCard({ icon, label, value, sub, color }: {
   );
 }
 
-function CorrCard({ title, description, r, n, emoji }: {
+function confidenceBadge(n: number): { label: string; color: string; bg: string } {
+  if (n >= 14) return { label: 'Reliable', color: 'text-primary', bg: 'bg-primary/10' };
+  if (n >= 7) return { label: 'Developing', color: 'text-warning', bg: 'bg-warning/10' };
+  return { label: 'Preliminary', color: 'text-text-muted', bg: 'bg-forest' };
+}
+
+function CorrCard({ title, description, r, n, emoji, scatterData, xLabel, yLabel }: {
   title: string; description: string; r: number; n: number; emoji: string;
+  scatterData?: { x: number; y: number }[]; xLabel?: string; yLabel?: string;
 }) {
   const { label, color } = corrLabel(r);
+  const confidence = confidenceBadge(n);
   return (
     <Card className="flex flex-col">
       <CardContent className="p-5 flex flex-col gap-3 flex-1">
         <div className="flex items-start justify-between gap-2">
           <span className="text-3xl leading-none">{emoji}</span>
-          <span className="text-[10px] text-text-muted font-medium">n={n} days</span>
+          <div className="flex flex-col items-end gap-1">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${confidence.color} ${confidence.bg}`}>{confidence.label}</span>
+            <span className="text-[10px] text-text-muted font-medium">n={n} days</span>
+          </div>
         </div>
         <p className="text-sm font-semibold text-text-main leading-tight">{title}</p>
         <p className="text-xs text-text-muted leading-relaxed">{description}</p>
+        {scatterData && scatterData.length >= 3 && (
+          <div style={{ height: 120 }} className="mt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.border} />
+                <XAxis dataKey="x" type="number" stroke={chartColors.textMuted} fontSize={9} tickLine={false} axisLine={false} name={xLabel} />
+                <YAxis dataKey="y" type="number" stroke={chartColors.textMuted} fontSize={9} tickLine={false} axisLine={false} name={yLabel} />
+                <ZAxis range={[20, 20]} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="bg-card border border-border p-2 rounded-lg shadow-xl text-xs">
+                        <p className="text-text-muted">{xLabel}: <span className="text-text-main font-medium">{typeof d.x === 'number' ? d.x.toFixed(1) : d.x}</span></p>
+                        <p className="text-text-muted">{yLabel}: <span className="text-text-main font-medium">{typeof d.y === 'number' ? d.y.toFixed(1) : d.y}</span></p>
+                      </div>
+                    );
+                  }}
+                />
+                <Scatter data={scatterData} fill={r >= 0 ? chartColors.primary : chartColors.danger} fillOpacity={0.7} />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+        )}
         <div className="mt-auto space-y-1.5">
           <div className="flex justify-between items-center">
             <span className={`text-xs font-semibold ${color}`}>{label}</span>
@@ -120,6 +157,111 @@ function EmptyChart({ text }: { text: string }) {
       <AlertTriangle className="w-8 h-8 opacity-20" />
       <p className="text-sm">{text}</p>
     </div>
+  );
+}
+
+// ── Weekly Health Report ───────────────────────────────────────────────
+
+function WeeklyHealthReport({ stats, correlations, days, user }: {
+  stats: {
+    avgMood: number | null; avgSleepHrs: number | null; avgDailyFocus: number;
+    totalFocus: number; totalDist: number; rsdCount: number; stressCount: number;
+    medTaken: number; medTotal: number; urgeSurfed: number; urgeTotal: number;
+    focusEfficiency: number | null;
+  };
+  correlations: {
+    sleepMood: { r: number; n: number }; sleepFocus: { r: number; n: number };
+    medFocus: { r: number; n: number }; moodDistraction: { r: number; n: number };
+    [key: string]: any;
+  };
+  days: number;
+  user: any;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const reportText = useMemo(() => {
+    const date = format(new Date(), 'MMMM d, yyyy');
+    const lines: string[] = [
+      `AWARE — ADHD Health Report (${days}-day period ending ${date})`,
+      `Patient: ${user?.email || 'Anonymous'}`,
+      '─'.repeat(50),
+      '',
+      'SUMMARY METRICS',
+      `  Mood (avg):            ${stats.avgMood ? `${stats.avgMood.toFixed(1)} / 5` : 'No data'}`,
+      `  Sleep (avg):           ${stats.avgSleepHrs ? `${stats.avgSleepHrs.toFixed(1)} hours` : 'No data'}`,
+      `  Focus (daily avg):     ${Math.round(stats.avgDailyFocus)} minutes`,
+      `  Focus (total):         ${Math.round(stats.totalFocus / 60)} hours`,
+      `  Distraction (total):   ${Math.round(stats.totalDist)} minutes`,
+      `  Focus completion rate:  ${stats.focusEfficiency !== null ? `${Math.round(stats.focusEfficiency)}%` : 'N/A'}`,
+    ];
+
+    if (user?.medication_tracking) {
+      lines.push(`  Medication adherence:  ${stats.medTotal > 0 ? `${Math.round(stats.medTaken / stats.medTotal * 100)}% (${stats.medTaken}/${stats.medTotal} days)` : 'No data'}`);
+    }
+
+    lines.push(`  RSD episodes:          ${stats.rsdCount}${stats.rsdCount > 0 ? ` (${(stats.rsdCount / days * 7).toFixed(1)}/week)` : ''}`);
+    lines.push(`  Stress events:         ${stats.stressCount}`);
+
+    if (stats.urgeTotal > 0) {
+      lines.push(`  Urge surf success:     ${Math.round(stats.urgeSurfed / stats.urgeTotal * 100)}% (${stats.urgeSurfed}/${stats.urgeTotal} redirected)`);
+    }
+
+    lines.push('', 'CROSS-DIMENSIONAL CORRELATIONS (Pearson r)', '');
+
+    const addCorr = (name: string, r: number, n: number) => {
+      const conf = n >= 14 ? 'reliable' : n >= 7 ? 'developing' : 'preliminary';
+      lines.push(`  ${name}`);
+      lines.push(`    r = ${r.toFixed(2)}, n = ${n} days (${conf})`);
+      lines.push(`    ${corrLabel(r).label}`);
+    };
+
+    addCorr('Sleep Quality → Next-Day Mood', correlations.sleepMood.r, correlations.sleepMood.n);
+    addCorr('Sleep Hours → Next-Day Focus', correlations.sleepFocus.r, correlations.sleepFocus.n);
+    addCorr('Medication → Same-Day Focus', correlations.medFocus.r, correlations.medFocus.n);
+    addCorr('Mood → Distraction (inverted)', -correlations.moodDistraction.r, correlations.moodDistraction.n);
+
+    lines.push('', '─'.repeat(50));
+    lines.push('Generated by Aware (https://aware-nu.vercel.app/)');
+    lines.push('This report is intended for sharing with healthcare providers.');
+
+    return lines.join('\n');
+  }, [stats, correlations, days, user]);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(reportText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="w-4 h-4 text-primary" /> Health Report for Provider
+          </CardTitle>
+          <button
+            onClick={handleCopy}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              copied
+                ? 'bg-primary/10 text-primary'
+                : 'bg-card border border-border text-text-muted hover:border-primary/40 hover:text-text-main'
+            }`}
+          >
+            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? 'Copied!' : 'Copy to clipboard'}
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <pre className="text-xs text-text-muted bg-forest rounded-lg p-4 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto">
+          {reportText}
+        </pre>
+        <p className="text-xs text-text-muted mt-2">
+          Copy this report and share it with your psychiatrist, therapist, or GP to support data-driven ADHD management.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -327,11 +469,17 @@ export default function AnalyticsPage() {
         }, 0) / poorSleepDays.length
       : null;
 
+    // Build scatter data pairs for visualization
+    const sleepMoodScatter = sq.map((x, i) => ({ x, y: +nm[i].toFixed(1) }));
+    const sleepFocusScatter = sh.map((x, i) => ({ x: +x.toFixed(1), y: +nf[i].toFixed(0) }));
+    const medFocusScatter = mk.map((x, i) => ({ x, y: +mf[i].toFixed(0) }));
+    const moodDistScatter = ma.map((x, i) => ({ x: +x.toFixed(1), y: +da[i].toFixed(0) }));
+
     return {
-      sleepMood: { r: pearsonR(sq, nm), n: sq.length },
-      sleepFocus: { r: pearsonR(sh, nf), n: sh.length },
-      medFocus: { r: pearsonR(mk, mf), n: mk.length },
-      moodDistraction: { r: pearsonR(ma, da), n: ma.length },
+      sleepMood: { r: pearsonR(sq, nm), n: sq.length, scatter: sleepMoodScatter },
+      sleepFocus: { r: pearsonR(sh, nf), n: sh.length, scatter: sleepFocusScatter },
+      medFocus: { r: pearsonR(mk, mf), n: mk.length, scatter: medFocusScatter },
+      moodDistraction: { r: pearsonR(ma, da), n: ma.length, scatter: moodDistScatter },
       avgHighGiDist, avgLowGiDist,
       avgMedOnFocus, avgMedOffFocus,
       avgFocusAfterGoodSleep, avgFocusAfterPoorSleep,
@@ -604,6 +752,9 @@ export default function AnalyticsPage() {
               description="Does sleeping better predict you'll feel better the next day?"
               r={correlations.sleepMood.r}
               n={correlations.sleepMood.n}
+              scatterData={correlations.sleepMood.scatter}
+              xLabel="Sleep Quality"
+              yLabel="Next-Day Mood"
             />
             <CorrCard
               emoji="💤→⚡"
@@ -611,6 +762,9 @@ export default function AnalyticsPage() {
               description="Does more sleep lead to longer, more productive focus sessions?"
               r={correlations.sleepFocus.r}
               n={correlations.sleepFocus.n}
+              scatterData={correlations.sleepFocus.scatter}
+              xLabel="Sleep Hours"
+              yLabel="Focus (min)"
             />
             <CorrCard
               emoji="💊→🎯"
@@ -618,6 +772,9 @@ export default function AnalyticsPage() {
               description="Do medication days correlate with more focus minutes?"
               r={correlations.medFocus.r}
               n={correlations.medFocus.n}
+              scatterData={correlations.medFocus.scatter}
+              xLabel="Medication (0/1)"
+              yLabel="Focus (min)"
             />
             <CorrCard
               emoji="😊→📵"
@@ -625,6 +782,9 @@ export default function AnalyticsPage() {
               description="On higher-mood days, do you spend less time distracted?"
               r={-correlations.moodDistraction.r}
               n={correlations.moodDistraction.n}
+              scatterData={correlations.moodDistraction.scatter}
+              xLabel="Mood Score"
+              yLabel="Distraction (min)"
             />
           </div>
         )}
@@ -885,6 +1045,11 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Weekly Health Report ── */}
+      {stats && correlations && (
+        <WeeklyHealthReport stats={stats} correlations={correlations} days={days} user={user} />
+      )}
 
       {/* ── Science footer ── */}
       <div className="rounded-2xl bg-primary/5 border border-primary/10 p-5 flex gap-4 items-start">
