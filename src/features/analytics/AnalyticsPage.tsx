@@ -8,7 +8,7 @@ import {
 import { subDays, format, eachDayOfInterval, startOfWeek } from 'date-fns';
 import {
   Brain, Moon, Smile, Timer, Smartphone, TrendingUp,
-  Zap, Activity, AlertTriangle, Target, FileText, Copy, Check,
+  Zap, Activity, AlertTriangle, Target, FileText, Copy, Check, ArrowUp, ArrowDown, Minus,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
@@ -380,6 +380,44 @@ export default function AnalyticsPage() {
     };
   }, [data, days]);
 
+  // ── Week-over-week comparison ────────────────────────────────────────
+  const weekOverWeek = useMemo(() => {
+    if (!data) return null;
+    const now = new Date();
+    const thisWeekStart = subDays(now, 7).toISOString().slice(0, 10);
+    const lastWeekStart = subDays(now, 14).toISOString().slice(0, 10);
+
+    const inRange = (ts: string, from: string, to: string) => ts.slice(0, 10) >= from && ts.slice(0, 10) < to;
+    const toDate = now.toISOString().slice(0, 10);
+
+    const thisWeekMoods = data.mood.filter(m => inRange(m.timestamp, thisWeekStart, toDate)).map(m => m.mood_score);
+    const lastWeekMoods = data.mood.filter(m => inRange(m.timestamp, lastWeekStart, thisWeekStart)).map(m => m.mood_score);
+
+    const thisWeekFocus = data.focus.filter(f => inRange(f.started_at, thisWeekStart, toDate)).reduce((s, f) => s + (f.duration_minutes || 0), 0);
+    const lastWeekFocus = data.focus.filter(f => inRange(f.started_at, lastWeekStart, thisWeekStart)).reduce((s, f) => s + (f.duration_minutes || 0), 0);
+
+    const thisWeekSleeps = data.sleep.filter(s => inRange(s.bedtime || s.date, thisWeekStart, toDate)).map(s => s.duration_hours);
+    const lastWeekSleeps = data.sleep.filter(s => inRange(s.bedtime || s.date, lastWeekStart, thisWeekStart)).map(s => s.duration_hours);
+
+    const thisWeekDist = data.distraction.filter(d => inRange(d.timestamp, thisWeekStart, toDate)).reduce((s, d) => s + (d.duration_minutes || 0), 0);
+    const lastWeekDist = data.distraction.filter(d => inRange(d.timestamp, lastWeekStart, thisWeekStart)).reduce((s, d) => s + (d.duration_minutes || 0), 0);
+
+    const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+    const diff = (curr: number | null, prev: number | null) => curr !== null && prev !== null && prev !== 0 ? ((curr - prev) / prev) * 100 : null;
+
+    const thisMood = avg(thisWeekMoods);
+    const lastMood = avg(lastWeekMoods);
+    const thisSleep = avg(thisWeekSleeps);
+    const lastSleep = avg(lastWeekSleeps);
+
+    return {
+      mood:  { this: thisMood,      last: lastMood,      diff: diff(thisMood, lastMood),      unit: '/5',  higherIsBetter: true },
+      focus: { this: thisWeekFocus, last: lastWeekFocus, diff: diff(thisWeekFocus, lastWeekFocus), unit: 'min', higherIsBetter: true },
+      sleep: { this: thisSleep,     last: lastSleep,     diff: diff(thisSleep, lastSleep),     unit: 'h',   higherIsBetter: true },
+      dist:  { this: thisWeekDist,  last: lastWeekDist,  diff: diff(thisWeekDist, lastWeekDist),  unit: 'min', higherIsBetter: false },
+    };
+  }, [data]);
+
   // ── Correlations ────────────────────────────────────────────────────
   const correlations = useMemo(() => {
     if (!data) return null;
@@ -628,6 +666,51 @@ export default function AnalyticsPage() {
             color="text-danger"
           />
         </div>
+      )}
+
+      {/* ── Week-over-week ── */}
+      {weekOverWeek && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="w-4 h-4 text-primary" /> This Week vs Last Week
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {([
+                { label: 'Avg Mood', key: 'mood' as const, fmt: (v: number) => v.toFixed(1) },
+                { label: 'Focus Time', key: 'focus' as const, fmt: (v: number) => `${Math.round(v)}m` },
+                { label: 'Avg Sleep', key: 'sleep' as const, fmt: (v: number) => `${v.toFixed(1)}h` },
+                { label: 'Distraction', key: 'dist' as const, fmt: (v: number) => `${Math.round(v)}m` },
+              ] as const).map(({ label, key, fmt }) => {
+                const row = weekOverWeek[key];
+                const d = row.diff;
+                const improved = d !== null && (row.higherIsBetter ? d > 0 : d < 0);
+                const worsened = d !== null && (row.higherIsBetter ? d < 0 : d > 0);
+                const deltaColor = improved ? 'text-primary' : worsened ? 'text-danger' : 'text-text-muted';
+                const DeltaIcon = d === null || Math.abs(d) < 1 ? Minus : improved ? ArrowUp : ArrowDown;
+                return (
+                  <div key={key} className="flex flex-col gap-1 p-3 rounded-lg bg-forest">
+                    <p className="text-xs text-text-muted font-medium uppercase tracking-wider">{label}</p>
+                    <p className="text-xl font-bold text-text-main">
+                      {row.this !== null ? fmt(row.this) : '—'}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      Last week: {row.last !== null ? fmt(row.last) : '—'}
+                    </p>
+                    {d !== null && (
+                      <p className={`text-xs font-semibold flex items-center gap-0.5 ${deltaColor}`}>
+                        <DeltaIcon className="w-3 h-3" />
+                        {Math.abs(d).toFixed(0)}%
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Daily Trends ── */}

@@ -32,7 +32,6 @@ const navItems = [
   { path: '/ahead', label: 'Day Ahead', icon: Sunrise },
   { path: '/review', label: 'Day Review', icon: Sunset },
   { path: '/analytics', label: 'Health Patterns', icon: BarChart2 },
-  { path: '/insights', label: 'AI Counsellor', icon: BrainCircuit },
 ];
 
 export default function Sidebar() {

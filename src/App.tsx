@@ -24,7 +24,6 @@ import TasksPage from './features/tasks/TasksPage';
 import CalendarPage from './features/calendar/CalendarPage';
 import DayAheadPage from './features/ahead/DayAheadPage';
 import DayReviewPage from './features/review/DayReviewPage';
-import InsightsPage from './features/insights/InsightsPage';
 import AnalyticsPage from './features/analytics/AnalyticsPage';
 
 
@@ -66,7 +65,6 @@ function App() {
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/ahead" element={<DayAheadPage />} />
             <Route path="/review" element={<DayReviewPage />} />
-            <Route path="/insights" element={<InsightsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

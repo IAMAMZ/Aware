@@ -142,8 +142,8 @@ export default function NutritionPage() {
           {/* Hunger */}
           <div>
             <p className="text-xs text-text-muted mb-2">Hunger level: {hungerLevel}/5</p>
-            <input type="range" min="1" max="5" value={hungerLevel} onChange={(e) => setHungerLevel(Number(e.target.value))}
-              className="w-full accent-primary" />
+            <input type="range" min="1" max="5" step="1" value={hungerLevel} onChange={(e) => setHungerLevel(Number(e.target.value))}
+              className="w-full accent-primary h-2 cursor-pointer" />
             <div className="flex justify-between text-xs text-text-muted mt-1">
               <span>Not hungry</span><span>Starving</span>
             </div>
